@@ -76,7 +76,10 @@ export function getNextDueDate(task) {
     if (recurrence_unit === 'days') {
       if (startOfDay(base) < startOfDay(anchor)) return anchor
       const elapsed = Math.round((startOfDay(base) - startOfDay(anchor)) / 86_400_000)
-      return addDays(anchor, (Math.floor(elapsed / n) + 1) * n)
+      const next = addDays(anchor, (Math.floor(elapsed / n) + 1) * n)
+      // Daily tasks (every 1 day) always show as due today if missed — never accumulate overdue
+      if (n === 1 && startOfDay(next) < startOfDay(new Date())) return new Date()
+      return next
     }
 
     if (recurrence_unit === 'weeks') {
