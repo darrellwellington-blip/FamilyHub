@@ -53,6 +53,8 @@ function initForm(task, knownCats) {
     assigned_to:         task?.assigned_to    ?? null,
     parent_task_id:      task?.parent_task_id ?? null,
     is_active:           task?.is_active ?? 1,
+    effort_size:         task?.effort_size  ?? null,
+    effort_hours:        task?.effort_hours != null ? String(task.effort_hours) : '',
   }
 }
 
@@ -106,6 +108,8 @@ export default function TaskForm({ task, categories, allTasks = [], onClose, onS
         is_active:   form.is_active ? 1 : 0,
         assigned_to:    form.assigned_to    ?? null,
         parent_task_id: form.parent_task_id ?? null,
+        effort_size:  form.effort_size ?? null,
+        effort_hours: form.effort_hours !== '' ? Number(form.effort_hours) : null,
         due_date: !form.recurring && !form.seasonal && form.due_date ? form.due_date : null,
         due_time: form.due_time || null,
 
@@ -192,6 +196,36 @@ export default function TaskForm({ task, categories, allTasks = [], onClose, onS
                 {p}
               </label>
             ))}
+          </div>
+        </div>
+
+        {/* Effort */}
+        <div>
+          <label className="label">Effort estimate</label>
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1.5">
+              {['S', 'M', 'L'].map(s => (
+                <button key={s} type="button"
+                  onClick={() => { set('effort_size', form.effort_size === s ? null : s); set('effort_hours', '') }}
+                  className={`w-10 py-1.5 rounded-lg border text-sm font-bold transition-colors ${
+                    form.effort_size === s
+                      ? 'bg-purple-600 text-white border-purple-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'
+                  }`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            <span className="text-gray-300 text-sm">or</span>
+            <div className="flex items-center gap-1.5 flex-1">
+              <input
+                type="number" min="0" step="0.5" placeholder="0"
+                className="input w-24"
+                value={form.effort_hours}
+                onChange={e => { set('effort_hours', e.target.value); set('effort_size', null) }}
+              />
+              <span className="text-sm text-gray-500">hours</span>
+            </div>
           </div>
         </div>
 

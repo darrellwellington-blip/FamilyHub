@@ -489,10 +489,19 @@ export const moviesApi = {
 
 export const tasksApi = {
   list: (params = {}) => {
-    let q = supabase.from('tasks').select('*, task_completions(id, completed_at, completed_by)').order('title')
+    let q = supabase.from('tasks')
+      .select('*, task_completions(id, completed_at, completed_by), assigned_user:users!assigned_to(id, name), parent:tasks!parent_task_id(title)')
+      .order('sort_order', { nullsFirst: false })
+      .order('title')
     if (params.category)  q = q.eq('category', params.category)
     if (params.is_active !== undefined) q = q.eq('is_active', params.is_active !== 'false')
-    return sb(q)
+    return sb(q).then(rows => rows.map(t => ({
+      ...t,
+      assigned_to_name: t.assigned_user?.name ?? null,
+      parent_title:     t.parent?.title ?? null,
+      assigned_user:    undefined,
+      parent:           undefined,
+    })))
   },
   get:    (id)       => sb(supabase.from('tasks').select('*, task_completions(*), task_requirements(*)').eq('id', id).single()),
   create: (data)     => sb(supabase.from('tasks').insert(data).select().single()),

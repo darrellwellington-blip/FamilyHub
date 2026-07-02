@@ -3,6 +3,7 @@ import { tasksApi, categoriesApi, usersApi } from '../../api'
 import { useUser } from '../../UserContext'
 import { filterAndSort, countsByFilter } from './taskUtils'
 import TaskCard from './TaskCard'
+import TaskListView from './TaskListView'
 import TaskForm from './TaskForm'
 import CompleteModal from './CompleteModal'
 import HistoryModal from './HistoryModal'
@@ -25,6 +26,7 @@ export default function Tasks() {
   const [filter,         setFilter]         = useState('all')
   const [catFilter,      setCatFilter]      = useState('')
   const [personFilter,   setPersonFilter]   = useState(null)
+  const [viewMode,       setViewMode]       = useState('list') // 'list' | 'cards'
   const [showForm,       setShowForm]       = useState(false)
   const [editingTask,    setEditingTask]    = useState(null)
   const [completingTask, setCompletingTask] = useState(null)
@@ -117,7 +119,22 @@ export default function Tasks() {
       {/* ── Page header ───────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-2xl font-bold text-gray-900">Tasks</h1>
-        <button className="btn-primary" onClick={openAdd}>+ Add Task</button>
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            <button
+              onClick={() => setViewMode('list')}
+              title="List view"
+              className={`px-2.5 py-1.5 text-sm transition-colors ${viewMode === 'list' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+            >☰</button>
+            <button
+              onClick={() => setViewMode('cards')}
+              title="Card view"
+              className={`px-2.5 py-1.5 text-sm transition-colors ${viewMode === 'cards' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+            >⊞</button>
+          </div>
+          <button className="btn-primary" onClick={openAdd}>+ Add Task</button>
+        </div>
       </div>
 
       {/* ── Filter bar ────────────────────────────────────────────────── */}
@@ -225,11 +242,22 @@ export default function Tasks() {
         </div>
       </div>
 
-      {/* ── Task grid ─────────────────────────────────────────────────── */}
+      {/* ── Task content ──────────────────────────────────────────────── */}
       {loading ? (
         <div className="text-center py-16 text-gray-400">Loading tasks…</div>
       ) : filtered.length === 0 ? (
         <EmptyState filter={filter} onAdd={openAdd} />
+      ) : viewMode === 'list' ? (
+        <TaskListView
+          key={filtered.map(t => t.id).join(',')}
+          tasks={filtered}
+          users={users}
+          onEdit={openEdit}
+          onComplete={(task) => setCompletingTask(task)}
+          onHistory={(task) => setHistoryTask(task)}
+          onDelete={(task) => handleDelete(task.id)}
+          onChanged={loadTasks}
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(task => (
