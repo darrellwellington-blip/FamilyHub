@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python --version; python -m pip install flask flask-cors werkzeug --quiet 2>&1 | Select-Object -Last 5)",
+      "PowerShell(Get-Command *)",
+      "PowerShell(py *)",
+      "PowerShell(& \"C:\\\\Users\\\\hedli\\\\AppData\\\\Local\\\\Microsoft\\\\WindowsApps\\\\python.exe\" --version 2>&1)",
+      "PowerShell(python --version 2>&1; python -m pip --version 2>&1)",
+      "PowerShell(npm *)",
+      "Bash(python -c \"from app import app; print\\([str\\(r\\) for r in app.url_map.iter_rules\\(\\) if 'tasks' in str\\(r\\)]\\)\")",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:5000/api/tasks\" -Method POST -ContentType \"application/json\" -Body '{\"title\":\"Test Task\",\"category\":\"Home\",\"priority\":\"Medium\",\"recurrence_type\":\"One-time\"}' -ErrorAction SilentlyContinue | ConvertTo-Json)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:5000/api/tasks\" -Method GET | ConvertTo-Json)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:5000/api/users\" -Method GET 2>&1)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://127.0.0.1:5000/\" -UseBasicParsing 2>&1 | Select-Object -ExpandProperty Content)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:5000/api/tasks\" -Method GET 2>&1)",
+      "PowerShell(try { Invoke-WebRequest -Uri \"http://127.0.0.1:5000/api/tasks\" -UseBasicParsing } catch { $_.Exception.Response.StatusCode; $_.ErrorDetails.Message })"
+    ]
+  }
+}
