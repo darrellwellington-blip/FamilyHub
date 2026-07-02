@@ -1,5 +1,6 @@
 import { Outlet, NavLink } from 'react-router-dom'
 import { useUser } from '../UserContext'
+import { useAuth } from '../AuthContext'
 
 const NAV = [
   { to: '/tasks',      label: 'Tasks',      icon: '✅' },
@@ -12,6 +13,7 @@ const NAV = [
 
 export default function Layout() {
   const { currentUser, users, selectUser } = useUser()
+  const { signOut } = useAuth()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -41,8 +43,8 @@ export default function Layout() {
             ))}
           </nav>
 
-          {/* User selector */}
-          <div className="shrink-0">
+          {/* User selector + sign out */}
+          <div className="shrink-0 flex items-center gap-2">
             <select
               value={currentUser?.id ?? ''}
               onChange={e => {
@@ -57,6 +59,14 @@ export default function Layout() {
                 <option key={u.id} value={u.id}>{u.name}</option>
               ))}
             </select>
+            <button
+              onClick={signOut}
+              className="text-slate-400 hover:text-white text-xs px-2 py-1.5 rounded
+                         hover:bg-slate-700 transition-colors whitespace-nowrap"
+              title="Sign out"
+            >
+              Sign out
+            </button>
           </div>
         </div>
       </header>

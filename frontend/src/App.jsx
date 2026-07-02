@@ -1,6 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { UserProvider } from './UserContext'
+import { AuthProvider, useAuth } from './AuthContext'
+import { UserProvider, useUser } from './UserContext'
 import Layout from './components/Layout'
+import Login from './pages/Login'
+import Onboarding from './pages/Onboarding'
 import Tasks from './pages/Tasks'
 import Meals from './pages/Meals'
 import Shopping from './pages/Shopping'
@@ -12,26 +15,53 @@ import MiniGolf from './pages/Adventures/MiniGolf'
 import Bowling from './pages/Adventures/Bowling'
 import Movies from './pages/Adventures/Movies'
 
+function AppRoutes() {
+  const { session } = useAuth()
+  const { profileFound, reloadUsers } = useUser()
+
+  // Still loading auth session
+  if (session === undefined || profileFound === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">
+        Loading…
+      </div>
+    )
+  }
+
+  // Not signed in
+  if (!session) return <Login />
+
+  // Signed in but no profile yet
+  if (profileFound === false) return <Onboarding onComplete={reloadUsers} />
+
+  // Fully authenticated
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Navigate to="/tasks" replace />} />
+          <Route path="tasks"      element={<Tasks />} />
+          <Route path="meals"      element={<Meals />} />
+          <Route path="shopping"   element={<Shopping />} />
+          <Route path="purchases"  element={<Purchases />} />
+          <Route path="inventory"  element={<Inventory />} />
+          <Route path="adventures"                  element={<Adventures />} />
+          <Route path="adventures/escape-rooms"     element={<EscapeRooms />} />
+          <Route path="adventures/mini-golf"        element={<MiniGolf />} />
+          <Route path="adventures/bowling"          element={<Bowling />} />
+          <Route path="adventures/movies"           element={<Movies />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  )
+}
+
 export default function App() {
   return (
-    <UserProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/tasks" replace />} />
-            <Route path="tasks"     element={<Tasks />} />
-            <Route path="meals"     element={<Meals />} />
-            <Route path="shopping"  element={<Shopping />} />
-            <Route path="purchases" element={<Purchases />} />
-            <Route path="inventory" element={<Inventory />} />
-            <Route path="adventures"                  element={<Adventures />} />
-            <Route path="adventures/escape-rooms"     element={<EscapeRooms />} />
-            <Route path="adventures/mini-golf"        element={<MiniGolf />} />
-            <Route path="adventures/bowling"          element={<Bowling />} />
-            <Route path="adventures/movies"           element={<Movies />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </UserProvider>
+    <AuthProvider>
+      <UserProvider>
+        <AppRoutes />
+      </UserProvider>
+    </AuthProvider>
   )
 }
