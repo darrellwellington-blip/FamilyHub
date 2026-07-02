@@ -43,27 +43,17 @@ export default function Layout() {
             ))}
           </nav>
 
-          {/* User selector + sign out */}
+          {/* Current user + sign out */}
           <div className="shrink-0 flex items-center gap-2">
-            <select
-              value={currentUser?.id ?? ''}
-              onChange={e => {
-                const user = users.find(u => u.id === Number(e.target.value))
-                if (user) selectUser(user)
-              }}
-              className="bg-slate-700 text-white text-sm rounded px-3 py-1.5
-                         border border-slate-600 focus:outline-none focus:ring-2
-                         focus:ring-indigo-400 cursor-pointer"
-            >
-              {users.map(u => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
+            {currentUser && (
+              <span className="text-slate-300 text-sm font-medium hidden sm:inline">
+                {currentUser.name}
+              </span>
+            )}
             <button
               onClick={signOut}
               className="text-slate-400 hover:text-white text-xs px-2 py-1.5 rounded
                          hover:bg-slate-700 transition-colors whitespace-nowrap"
-              title="Sign out"
             >
               Sign out
             </button>
