@@ -14,15 +14,15 @@ export default function Onboarding({ onComplete }) {
     setError(null)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      // Create user record linked to this Google account
       await usersApi.create({
         name: name.trim(),
         email: user.email,
         family_hub_id: 1,
       })
-      onComplete()
+      await onComplete()
     } catch (err) {
       setError(err.message)
+    } finally {
       setSaving(false)
     }
   }

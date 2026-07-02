@@ -645,14 +645,14 @@ function PurchaseHistoryModal({ onClose, lists }) {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                        {p.items.length} item{p.items.length !== 1 ? 's' : ''}
+                        {p.purchase_record_items.length} item{p.purchase_record_items.length !== 1 ? 's' : ''}
                       </span>
                       <span className="text-gray-400 text-xs">{expanded === p.id ? '▲' : '▼'}</span>
                     </div>
                   </button>
                   {expanded === p.id && (
                     <div className="border-t border-gray-100 px-4 py-2 bg-white">
-                      {p.items.map((item, idx) => (
+                      {p.purchase_record_items.map((item, idx) => (
                         <div key={idx} className="flex items-center gap-2 py-1.5 border-b border-gray-50 last:border-0">
                           <span className="text-green-500 text-xs">✓</span>
                           <span className="text-sm text-gray-700 flex-1">{item.name}</span>

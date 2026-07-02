@@ -65,11 +65,11 @@ export default function PurchaseDetail({ purchaseId, onClose, onEdit, onDeleted 
           </div>
 
           {/* Line items */}
-          {purchase.items.length === 0 ? (
+          {(purchase.purchase_items ?? []).length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-4">No line items recorded.</p>
           ) : (
             <div className="flex flex-col divide-y divide-gray-100">
-              {purchase.items.map(item => (
+              {(purchase.purchase_items ?? []).map(item => (
                 <div key={item.id} className="flex items-center gap-3 py-2.5">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-900">{item.name}</p>

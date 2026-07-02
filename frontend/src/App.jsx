@@ -17,13 +17,19 @@ import Movies from './pages/Adventures/Movies'
 
 function AppRoutes() {
   const { session } = useAuth()
-  const { profileFound, reloadUsers } = useUser()
+  const { profileFound, reloadUsers, initError } = useUser()
 
-  // Still loading auth session
+  // Still loading
   if (session === undefined || profileFound === null) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400">
-        Loading…
+        {initError ? (
+          <div className="text-center">
+            <p className="text-red-500 font-medium">Failed to load</p>
+            <p className="text-sm mt-1">{initError}</p>
+            <button className="mt-4 btn-primary" onClick={() => window.location.reload()}>Retry</button>
+          </div>
+        ) : 'Loading…'}
       </div>
     )
   }

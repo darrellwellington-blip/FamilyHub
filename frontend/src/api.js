@@ -94,20 +94,17 @@ async function listWithItems(id) {
 
 export const shoppingApi = {
   lists: (params = {}) => {
-    let q = supabase.from('shopping_lists')
-      .select('*, item_count:shopping_items(count), checked_count:shopping_items(count)')
-      .order('created_at', { ascending: false })
+    let q = supabase.from('shopping_lists').select('*, shopping_items(id, is_checked)').order('created_at', { ascending: false })
     if (params.archived !== undefined)
       q = q.eq('is_archived', params.archived === 'true' || params.archived === true)
-    // Simpler: just fetch lists and let component compute counts
-    return sb(supabase.from('shopping_lists').select('*, shopping_items(id, is_checked)').order('created_at', { ascending: false })
-      .eq('is_archived', false))
-      .then(lists => lists.map(l => ({
-        ...l,
-        item_count:    l.shopping_items?.length ?? 0,
-        checked_count: l.shopping_items?.filter(i => i.is_checked).length ?? 0,
-        shopping_items: undefined,
-      })))
+    else
+      q = q.eq('is_archived', false)
+    return sb(q).then(lists => lists.map(l => ({
+      ...l,
+      item_count:    l.shopping_items?.length ?? 0,
+      checked_count: l.shopping_items?.filter(i => i.is_checked).length ?? 0,
+      shopping_items: undefined,
+    })))
   },
   getList:     (id)       => listWithItems(id),
   createList:  (data)     => sb(supabase.from('shopping_lists').insert(data).select().single()),
