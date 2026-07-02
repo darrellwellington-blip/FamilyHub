@@ -10,7 +10,11 @@
 
 @layer components {
   .btn {
-    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1;
+    @apply inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1;
+    min-height: 44px;
+  }
+  @media (min-width: 640px) {
+    .btn { min-height: unset; @apply py-1.5; }
   }
   .btn-primary {
     @apply btn bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500;

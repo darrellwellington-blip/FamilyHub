@@ -68,49 +68,28 @@ export default function PurchaseDetail({ purchaseId, onClose, onEdit, onDeleted 
           {purchase.items.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-4">No line items recorded.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 text-left text-xs text-gray-500 uppercase tracking-wide">
-                    <th className="pb-2 font-medium w-8"></th>
-                    <th className="pb-2 font-medium">Item</th>
-                    <th className="pb-2 font-medium text-right">Qty</th>
-                    <th className="pb-2 font-medium text-right">Unit Price</th>
-                    <th className="pb-2 font-medium text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {purchase.items.map(item => (
-                    <tr key={item.id} className="group">
-                      <td className="py-2.5 text-gray-900">
-                        {item.name}
-                        {item.notes && (
-                          <span className="block text-xs text-gray-400">{item.notes}</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 text-right text-gray-600">{item.quantity}</td>
-                      <td className="py-2.5 text-right text-gray-600">
-                        {item.unit_price != null ? fmtMoney(item.unit_price) : '—'}
-                      </td>
-                      <td className="py-2.5 text-right font-medium text-gray-800">
-                        {item.unit_price != null
-                          ? fmtMoney((item.quantity || 0) * item.unit_price)
-                          : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-200">
-                    <td colSpan={4} className="pt-3 text-right text-sm font-semibold text-gray-700">
-                      Total
-                    </td>
-                    <td className="pt-3 text-right text-base font-bold text-gray-900">
-                      {fmtMoney(purchase.total)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+            <div className="flex flex-col divide-y divide-gray-100">
+              {purchase.items.map(item => (
+                <div key={item.id} className="flex items-center gap-3 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-900">{item.name}</p>
+                    {item.notes && <p className="text-xs text-gray-400">{item.notes}</p>}
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Qty: {item.quantity}
+                      {item.unit_price != null && ` · ${fmtMoney(item.unit_price)} each`}
+                    </p>
+                  </div>
+                  <span className="text-sm font-medium text-gray-800 shrink-0">
+                    {item.unit_price != null
+                      ? fmtMoney((item.quantity || 0) * item.unit_price)
+                      : '—'}
+                  </span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-3 mt-1">
+                <span className="text-sm font-semibold text-gray-700">Total</span>
+                <span className="text-base font-bold text-gray-900">{fmtMoney(purchase.total)}</span>
+              </div>
             </div>
           )}
 

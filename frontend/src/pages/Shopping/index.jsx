@@ -127,21 +127,69 @@ export default function Shopping() {
 
   const checkedItems = openList?.items?.filter(i => i.is_checked) ?? []
 
+  // On mobile: drill into a list (hide list picker, show list panel with back button)
+  const mobileShowList = selectedId && openList
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-bold text-gray-900">Shopping</h1>
+        {/* Mobile: show back button when viewing a list */}
+        {mobileShowList ? (
+          <button className="sm:hidden flex items-center gap-1 text-indigo-600 font-medium text-sm"
+            onClick={() => setSelectedId(null)}>
+            ← Lists
+          </button>
+        ) : (
+          <h1 className="text-2xl font-bold text-gray-900">Shopping</h1>
+        )}
+        <h1 className="hidden sm:block text-2xl font-bold text-gray-900">Shopping</h1>
         <div className="flex items-center gap-2">
           <button className="btn-secondary text-sm" onClick={() => setShowHistory(true)}>
-            📋 Purchase History
+            📋 <span className="hidden sm:inline">Purchase </span>History
           </button>
           <button className="btn-primary" onClick={() => setEditingList('new')}>+ New List</button>
         </div>
       </div>
 
-      <div className="flex gap-5 items-start">
+      {/* ── Mobile: drill-down layout ─────────────────────────────────────── */}
+      <div className="sm:hidden">
+        {mobileShowList ? (
+          <ListPanel
+            list={openList}
+            library={library}
+            checkedCount={checkedItems.length}
+            onCheckItem={handleCheckItem}
+            onAddItem={handleAddItem}
+            onDeleteItem={handleDeleteItem}
+            onToggleRecurring={handleToggleRecurring}
+            onDeleteList={handleDeleteList}
+            onEdit={() => setEditingList(openList)}
+            onCompletePurchase={() => setCompleting(true)}
+          />
+        ) : loading ? (
+          <p className="text-sm text-gray-400 text-center py-10">Loading…</p>
+        ) : lists.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <p className="text-3xl mb-2">🛒</p>
+            <p className="text-sm">No lists yet.</p>
+            <button className="btn-primary mt-3" onClick={() => setEditingList('new')}>
+              Create first list
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {lists.map(list => (
+              <SidebarItem key={list.id} list={list} selected={false}
+                onSelect={() => setSelectedId(list.id)} />
+            ))}
+          </div>
+        )}
+      </div>
 
-        {/* ── Sidebar ───────────────────────────────────────────────────── */}
+      {/* ── Desktop: sidebar + panel layout ──────────────────────────────── */}
+      <div className="hidden sm:flex gap-5 items-start">
+
+        {/* Sidebar */}
         <div className="w-64 shrink-0 flex flex-col gap-2">
           {loading ? (
             <p className="text-sm text-gray-400 text-center py-10">Loading…</p>
@@ -159,7 +207,7 @@ export default function Shopping() {
           ))}
         </div>
 
-        {/* ── Right panel ───────────────────────────────────────────────── */}
+        {/* Right panel */}
         <div className="flex-1 min-w-0">
           {openList ? (
             <ListPanel
@@ -317,18 +365,20 @@ function ListPanel({ list, library, checkedCount, onCheckItem, onAddItem, onDele
           <div className="flex gap-2 items-center">
             <input ref={nameRef} className="input flex-1" placeholder="Add item…"
               value={name} onChange={e => setName(e.target.value)} />
-            <input type="number" min="0" step="any" className="input w-16 text-center" placeholder="Qty"
-              value={qty} onChange={e => setQty(e.target.value)} />
-            <input className="input w-20" placeholder="Unit"
-              value={unit} onChange={e => setUnit(e.target.value)} />
             <button type="submit" className="btn-primary shrink-0"
               disabled={!name.trim() || adding}>Add</button>
           </div>
-          <label className="flex items-center gap-2 cursor-pointer w-fit">
-            <input type="checkbox" className="rounded border-gray-300" checked={recurring}
-              onChange={e => setRecurring(e.target.checked)} />
-            <span className="text-xs text-gray-500">Recurring (auto-restore after each purchase)</span>
-          </label>
+          <div className="flex gap-2 items-center">
+            <input type="number" min="0" step="any" className="input w-24 text-center" placeholder="Qty"
+              value={qty} onChange={e => setQty(e.target.value)} />
+            <input className="input flex-1" placeholder="Unit (optional)"
+              value={unit} onChange={e => setUnit(e.target.value)} />
+            <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+              <input type="checkbox" className="rounded border-gray-300 w-4 h-4" checked={recurring}
+                onChange={e => setRecurring(e.target.checked)} />
+              <span className="text-xs text-gray-500">Recurring</span>
+            </label>
+          </div>
         </form>
 
         {/* Library suggestions */}
@@ -389,16 +439,17 @@ function ListPanel({ list, library, checkedCount, onCheckItem, onAddItem, onDele
 
 function ItemRow({ item, onCheck, onDelete, onToggleRecurring }) {
   return (
-    <div className={`flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0 group
+    <div className={`flex items-center gap-3 py-3 border-b border-gray-50 last:border-0 group
       ${!!item.is_checked ? 'opacity-60' : ''}`}>
 
+      {/* Checkbox — larger tap target on mobile */}
       <button type="button" onClick={() => onCheck(!item.is_checked)}
-        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors
+        className={`w-7 h-7 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors
           ${!!item.is_checked
             ? 'bg-indigo-600 border-indigo-600 text-white'
             : 'border-gray-300 hover:border-indigo-400'}`}>
         {!!item.is_checked && (
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         )}
@@ -416,20 +467,21 @@ function ItemRow({ item, onCheck, onDelete, onToggleRecurring }) {
         {item.notes && <p className="text-xs text-gray-400 mt-0.5">{item.notes}</p>}
       </div>
 
-      {/* Recurring badge/toggle */}
+      {/* Recurring badge — always visible if recurring, hover-only on desktop if not */}
       <button type="button"
         onClick={() => onToggleRecurring(!item.is_recurring)}
-        title={!!item.is_recurring ? 'Recurring — click to remove' : 'Click to make recurring'}
-        className={`shrink-0 text-xs px-2 py-0.5 rounded-full border transition-colors ${
+        title={!!item.is_recurring ? 'Recurring — tap to remove' : 'Tap to make recurring'}
+        className={`shrink-0 text-xs px-2 py-1 rounded-full border transition-colors ${
           !!item.is_recurring
             ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
-            : 'bg-white text-gray-300 border-gray-200 opacity-0 group-hover:opacity-100'
+            : 'bg-white text-gray-300 border-gray-200 sm:opacity-0 sm:group-hover:opacity-100'
         }`}>
         🔁{!!item.is_recurring ? ' recurring' : ''}
       </button>
 
+      {/* Delete — always visible on mobile, hover-only on desktop */}
       <button type="button" onClick={onDelete}
-        className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 shrink-0">
+        className="text-gray-400 hover:text-red-500 transition-colors sm:opacity-0 sm:group-hover:opacity-100 shrink-0 p-1">
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
