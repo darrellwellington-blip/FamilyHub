@@ -273,7 +273,7 @@ export default function ReceiptScanner({ onClose, onAdded }) {
   const selectedCount = selected.size
 
   return (
-    <Modal title="Scan Receipt" onClose={onClose} maxWidth="max-w-xl">
+    <Modal title="Scan Receipt" onClose={onClose} maxWidth="max-w-xl" disableEsc>
       <div className="flex flex-col gap-4">
 
         {/* ── Pick stage ────────────────────────────────────────────── */}

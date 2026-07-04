@@ -691,12 +691,13 @@ function ShoppingPickerModal({ onClose, onAdded }) {
 }
 
 /* ── Shared modal shell ────────────────────────────────────────────────────── */
-export function Modal({ title, onClose, children, maxWidth = 'max-w-lg', headerAction }) {
+export function Modal({ title, onClose, children, maxWidth = 'max-w-lg', headerAction, disableEsc }) {
   useEffect(() => {
+    if (disableEsc) return
     const handler = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
+  }, [onClose, disableEsc])
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
