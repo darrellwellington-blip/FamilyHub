@@ -34,29 +34,32 @@ Rules:
 - Skip non-product lines: taxes, subtotals, loyalty savings, fees, payment info
 - Categorize food items as Food, drinks as Beverages, cleaning products as Cleaning, toiletries as Personal Care`
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mimeType ?? 'image/jpeg', data: image } },
-            ],
-          }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
-        }),
-      }
-    )
+    const geminiBody = JSON.stringify({
+      contents: [{
+        parts: [
+          { text: prompt },
+          { inline_data: { mime_type: mimeType ?? 'image/jpeg', data: image } },
+        ],
+      }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+    })
 
-    if (!geminiRes.ok) {
-      const err = await geminiRes.text()
+    let geminiRes: Response | null = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 2000))
+      geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: geminiBody }
+      )
+      if (geminiRes.status !== 429) break
+    }
+
+    if (!geminiRes!.ok) {
+      const err = await geminiRes!.text()
       return new Response(JSON.stringify({ error: `Gemini error: ${err}` }), { status: 502, headers: CORS })
     }
 
-    const geminiData = await geminiRes.json()
+    const geminiData = await geminiRes!.json()
     const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 
     // Strip any markdown fences Gemini might add despite instructions
