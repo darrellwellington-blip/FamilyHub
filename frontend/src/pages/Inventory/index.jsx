@@ -9,6 +9,7 @@ import InventoryDetail  from './InventoryDetail'
 import InventoryForm    from './InventoryForm'
 import RemoveModal      from './RemoveModal'
 import CollectionsTab   from './CollectionsTab'
+import ReceiptScanner   from './ReceiptScanner'
 
 export default function Inventory() {
   const [items,      setItems]      = useState([])
@@ -20,6 +21,7 @@ export default function Inventory() {
   const [viewing,    setViewing]    = useState(null)   // item obj for detail
   const [editing,    setEditing]    = useState(null)   // null | 'new' | item obj
   const [removing,   setRemoving]   = useState(null)   // item obj for remove modal
+  const [scanning,   setScanning]   = useState(false)
 
   // ── Load ────────────────────────────────────────────────────────────────────
 
@@ -115,7 +117,10 @@ export default function Inventory() {
           )}
         </div>
         {view !== 'collections' && (
-          <button className="btn-primary" onClick={() => setEditing('new')}>+ Add Item</button>
+          <div className="flex gap-2">
+            <button className="btn-secondary" onClick={() => setScanning(true)}>🧾 Scan Receipt</button>
+            <button className="btn-primary"   onClick={() => setEditing('new')}>+ Add Item</button>
+          </div>
         )}
       </div>
 
@@ -214,6 +219,13 @@ export default function Inventory() {
           item={removing}
           onClose={() => setRemoving(null)}
           onRemoved={afterChange}
+        />
+      )}
+
+      {scanning && (
+        <ReceiptScanner
+          onClose={() => setScanning(false)}
+          onAdded={async () => { await load(); setScanning(false) }}
         />
       )}
 
