@@ -101,15 +101,20 @@ export default function ReceiptScanner({ onClose, onAdded }) {
   const [preview,  setPreview]  = useState(null)
   const [store,    setStore]    = useState('')
   const [saveProgress, setSaveProgress] = useState(null) // '3 / 8'
-  const fileRef = useRef(null)
+  const fileRef    = useRef(null)
+  const cameraRef  = useRef(null)
 
   const handleFile = async (file) => {
     if (!file) return
+    // Reset input values so the same file can be re-selected after a re-scan
+    if (fileRef.current)   fileRef.current.value = ''
+    if (cameraRef.current) cameraRef.current.value = ''
     setPreview(URL.createObjectURL(file))
     setStage('scanning')
     setError(null)
     try {
       const raw = await scanReceipt(file)
+      if (!Array.isArray(raw) || raw.length === 0) throw new Error('No items found on receipt — try a clearer photo.')
       const withIds = raw.map((item, i) => ({ ...item, _id: i }))
       setItems(withIds)
       setSelected(new Set(withIds.map(i => i._id)))
@@ -178,25 +183,31 @@ export default function ReceiptScanner({ onClose, onAdded }) {
         {stage === 'pick' && (
           <>
             <p className="text-sm text-gray-500">
-              Take a photo of your grocery receipt or upload an image. Gemini will extract the items automatically.
+              Take a photo of your grocery receipt or choose an existing photo. Gemini will extract the items automatically.
             </p>
             {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-            <div
-              className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-3 py-10 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
-              onClick={() => fileRef.current?.click()}
-            >
-              <span className="text-4xl">🧾</span>
-              <p className="text-sm font-medium text-gray-600">Tap to photograph or upload receipt</p>
-              <p className="text-xs text-gray-400">JPG, PNG, HEIC, WebP</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-2 py-8 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                onClick={() => cameraRef.current?.click()}
+              >
+                <span className="text-3xl">📷</span>
+                <span className="text-sm font-medium text-gray-600">Take Photo</span>
+              </button>
+              <button
+                className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-2 py-8 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                onClick={() => fileRef.current?.click()}
+              >
+                <span className="text-3xl">🖼️</span>
+                <span className="text-sm font-medium text-gray-600">Choose Photo</span>
+              </button>
             </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={e => handleFile(e.target.files?.[0])}
-            />
+            {/* Camera-only input */}
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment"
+              className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
+            {/* Gallery / file picker — no capture attribute */}
+            <input ref={fileRef} type="file" accept="image/*"
+              className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
           </>
         )}
 
@@ -242,8 +253,6 @@ export default function ReceiptScanner({ onClose, onAdded }) {
                 onClick={() => fileRef.current?.click()}>
                 Re-scan
               </button>
-              <input ref={fileRef} type="file" accept="image/*" capture="environment"
-                className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
             </div>
 
             {/* Item list */}
