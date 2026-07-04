@@ -1,18 +1,24 @@
 export const PRESET_CATEGORIES = [
-  'Pantry', 'Fridge', 'Freezer', 'Electronics',
-  'Appliances', 'Furniture', 'Tools', 'Storage',
+  'Food', 'Beverages', 'Electronics',
+  'Appliances', 'Furniture', 'Tools', 'Cleaning', 'Personal Care', 'Storage',
 ]
 
 export const CATEGORY_ICONS = {
-  Pantry:      '🥫',
-  Fridge:      '🧊',
-  Freezer:     '❄️',
-  Electronics: '💻',
-  Appliances:  '🔌',
-  Furniture:   '🪑',
-  Tools:       '🔧',
-  Storage:     '📦',
+  Food:           '🥫',
+  Beverages:      '🥤',
+  Electronics:    '💻',
+  Appliances:     '🔌',
+  Furniture:      '🪑',
+  Tools:          '🔧',
+  Cleaning:       '🧹',
+  'Personal Care':'🪥',
+  Storage:        '📦',
 }
+
+export const PRESET_LOCATIONS = [
+  'Pantry', 'Fridge', 'Freezer', 'Kitchen', 'Garage',
+  'Basement', 'Bathroom', 'Laundry Room', 'Office',
+]
 
 const DATE_FMT  = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 const MONEY_FMT = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })

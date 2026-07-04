@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { inventoryApi } from '../../api'
 import { Modal } from '../Tasks/TaskForm'
-import { PRESET_CATEGORIES } from './inventoryUtils'
+import { PRESET_CATEGORIES, PRESET_LOCATIONS } from './inventoryUtils'
 
 function initForm(item) {
   const isCustomCat = item?.category && !PRESET_CATEGORIES.includes(item.category)
   return {
     name:            item?.name            ?? '',
     description:     item?.description     ?? '',
-    categorySelect:  isCustomCat ? '__custom' : (item?.category ?? 'Pantry'),
+    categorySelect:  isCustomCat ? '__custom' : (item?.category ?? 'Food'),
     customCategory:  isCustomCat ? item.category : '',
     location:        item?.location        ?? '',
     quantity:        item?.quantity        ?? 1,
@@ -116,7 +116,7 @@ export default function InventoryForm({ item, locationNames, storeNames, onClose
               onChange={e => set('location', e.target.value)}
             />
             <datalist id="known-locations">
-              {locationNames.map(l => <option key={l} value={l} />)}
+              {[...new Set([...PRESET_LOCATIONS, ...locationNames])].map(l => <option key={l} value={l} />)}
             </datalist>
           </div>
         </div>
