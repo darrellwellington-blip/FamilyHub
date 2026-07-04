@@ -6,31 +6,50 @@ import { PRESET_CATEGORIES, BATCH_CATEGORIES } from './inventoryUtils'
 
 const SUPABASE_URL = 'https://prewpubkkqoxwvqtxmbv.supabase.co'
 
-// Compress image to max 1200px and JPEG 0.85 quality before sending
+// Compress image to max 900px JPEG before sending.
+// Falls back to original file if canvas compression fails (e.g. HEIC on some browsers).
 function compressImage(file) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
     img.onload = () => {
       URL.revokeObjectURL(url)
-      const MAX = 800
-      let { width, height } = img
-      if (width > MAX || height > MAX) {
-        if (width > height) { height = Math.round(height * MAX / width); width = MAX }
-        else                { width  = Math.round(width  * MAX / height); height = MAX }
+      try {
+        const MAX = 900
+        let { width, height } = img
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+          else                { width  = Math.round(width  * MAX / height); height = MAX }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width; canvas.height = height
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+        canvas.toBlob(blob => {
+          if (blob && blob.size > 0) {
+            console.log(`Compressed: ${(file.size/1024).toFixed(0)}KB → ${(blob.size/1024).toFixed(0)}KB`)
+            resolve(blob)
+          } else {
+            console.warn('Canvas compression produced empty blob, using original')
+            resolve(file)
+          }
+        }, 'image/jpeg', 0.75)
+      } catch (e) {
+        console.warn('Canvas compression failed, using original:', e)
+        resolve(file)
       }
-      const canvas = document.createElement('canvas')
-      canvas.width = width; canvas.height = height
-      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
-      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Compression failed')), 'image/jpeg', 0.75)
     }
-    img.onerror = reject
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      console.warn('Image load failed, using original file')
+      resolve(file)
+    }
     img.src = url
   })
 }
 
-async function scanReceipt(file) {
+async function scanReceipt(file, onCompressed) {
   const compressed = await compressImage(file)
+  onCompressed?.(Math.round(compressed.size / 1024))
   const base64 = await new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result.split(',')[1])
@@ -42,7 +61,7 @@ async function scanReceipt(file) {
   if (!session) throw new Error('Not logged in — please refresh and try again.')
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 30000)
+  const timeout = setTimeout(() => controller.abort(), 50000)
 
   let res
   try {
@@ -137,6 +156,7 @@ function ItemRow({ item, onChange, onToggle, selected }) {
 
 export default function ReceiptScanner({ onClose, onAdded }) {
   const [stage,    setStage]    = useState('pick')   // pick | scanning | review | saving
+  const [fileSize, setFileSize] = useState(null)     // compressed KB for display
   const [items,    setItems]    = useState([])
   const [selected, setSelected] = useState(new Set())
   const [error,    setError]    = useState(null)
@@ -163,7 +183,7 @@ export default function ReceiptScanner({ onClose, onAdded }) {
     setStage('scanning')
     setError(null)
     try {
-      const raw = await scanReceipt(file)
+      const raw = await scanReceipt(file, setFileSize)
       if (!Array.isArray(raw) || raw.length === 0) throw new Error('No items found on receipt — try a clearer photo.')
       const withIds = raw.map((item, i) => ({ ...item, _id: i }))
       setItems(withIds)
@@ -290,6 +310,9 @@ export default function ReceiptScanner({ onClose, onAdded }) {
               </svg>
               <span className="text-sm font-medium">Scanning receipt…</span>
             </div>
+            {fileSize && (
+              <p className="text-xs text-gray-400">Sending {fileSize} KB to Gemini</p>
+            )}
           </div>
         )}
 
