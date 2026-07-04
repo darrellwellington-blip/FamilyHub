@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { inventoryApi } from '../../api'
 import { Modal } from '../Tasks/TaskForm'
-import { PRESET_CATEGORIES, PRESET_LOCATIONS } from './inventoryUtils'
+import { PRESET_CATEGORIES, PRESET_LOCATIONS, BATCH_CATEGORIES, categoryFields } from './inventoryUtils'
 
 function initForm(item) {
   const isCustomCat = item?.category && !PRESET_CATEGORIES.includes(item.category)
@@ -27,11 +27,19 @@ function initForm(item) {
 export default function InventoryForm({ item, locationNames, storeNames, onClose, onSaved }) {
   const [form,   setForm]   = useState(() => initForm(item))
   const [saving, setSaving] = useState(false)
-  const [error,      setError]      = useState(null)
+  const [error,  setError]  = useState(null)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  // ── Save ────────────────────────────────────────────────────────────────────
+  const category = form.categorySelect === '__custom'
+    ? (form.customCategory.trim() || 'Custom')
+    : form.categorySelect
+
+  const fields  = categoryFields(category).item ?? []
+  const isBatch = BATCH_CATEGORIES.has(category)
+  const show    = (f) => fields.includes(f)
+
+  // ── Save ──────────────────────────────────────────────────────────────────────
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -39,25 +47,24 @@ export default function InventoryForm({ item, locationNames, storeNames, onClose
     setSaving(true)
     setError(null)
 
-    const category = form.categorySelect === '__custom'
-      ? (form.customCategory.trim() || 'Custom')
-      : form.categorySelect
-
     const payload = {
-      name:             form.name.trim(),
-      description:      form.description.trim() || null,
+      name:        form.name.trim(),
+      description: show('description') ? (form.description.trim() || null) : null,
       category,
-      location:         form.location.trim() || null,
-      quantity:         form.quantity !== '' ? Number(form.quantity) : null,
-      unit:             form.unit.trim() || null,
-      best_before_date: form.best_before_date || null,
-      purchase_date:    form.purchase_date || null,
-      purchase_price:   form.purchase_price !== '' ? Number(form.purchase_price) : null,
-      store:            form.store.trim() || null,
-      serial_number:    form.serial_number.trim() || null,
-      model_number:     form.model_number.trim() || null,
-      estimated_value:  form.estimated_value !== '' ? Number(form.estimated_value) : null,
-      notes:            form.notes.trim() || null,
+      location:    show('location')    ? (form.location.trim() || null)    : null,
+      unit:        show('unit')        ? (form.unit.trim() || null)        : null,
+      notes:       show('notes')       ? (form.notes.trim() || null)       : null,
+      // non-batch item fields
+      ...(!isBatch && {
+        quantity:        show('quantity')       ? (form.quantity !== '' ? Number(form.quantity) : null) : null,
+        best_before_date:show('best_before_date')? (form.best_before_date || null) : null,
+        purchase_date:   show('purchase_date')  ? (form.purchase_date || null)    : null,
+        purchase_price:  show('purchase_price') ? (form.purchase_price !== '' ? Number(form.purchase_price) : null) : null,
+        store:           show('store')          ? (form.store.trim() || null)     : null,
+      }),
+      serial_number:  show('serial_number')  ? (form.serial_number.trim() || null)  : null,
+      model_number:   show('model_number')   ? (form.model_number.trim() || null)   : null,
+      estimated_value:show('estimated_value')? (form.estimated_value !== '' ? Number(form.estimated_value) : null) : null,
     }
 
     try {
@@ -66,7 +73,6 @@ export default function InventoryForm({ item, locationNames, storeNames, onClose
       } else {
         await inventoryApi.update(item.id, payload)
       }
-
       await onSaved()
       onClose()
     } catch (err) {
@@ -76,27 +82,16 @@ export default function InventoryForm({ item, locationNames, storeNames, onClose
   }
 
   return (
-    <Modal
-      title={item ? 'Edit Item' : 'Add Item'}
-      onClose={onClose}
-      maxWidth="max-w-2xl"
-    >
+    <Modal title={item ? 'Edit Item' : 'Add Item'} onClose={onClose} maxWidth="max-w-2xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-        {/* ── Identity ──────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <label className="label">Name <span className="text-red-500">*</span></label>
-            <input className="input" value={form.name} onChange={e => set('name', e.target.value)} />
-          </div>
-          <div className="col-span-2">
-            <label className="label">Description</label>
-            <textarea className="input resize-none" rows={2}
-              value={form.description} onChange={e => set('description', e.target.value)} />
-          </div>
+        {/* ── Name ──────────────────────────────────────────────────────── */}
+        <div>
+          <label className="label">Name <span className="text-red-500">*</span></label>
+          <input className="input" value={form.name} onChange={e => set('name', e.target.value)} />
         </div>
 
-        {/* ── Classification ────────────────────────────────────────────── */}
+        {/* ── Category + Location ───────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="label">Category</label>
@@ -106,20 +101,18 @@ export default function InventoryForm({ item, locationNames, storeNames, onClose
               <option value="__custom">Custom…</option>
             </select>
           </div>
-          <div>
-            <label className="label">Location</label>
-            <input
-              list="known-locations"
-              className="input"
-              placeholder="e.g. Kitchen, Garage…"
-              value={form.location}
-              onChange={e => set('location', e.target.value)}
-            />
-            <datalist id="known-locations">
-              {[...new Set([...PRESET_LOCATIONS, ...locationNames])].map(l => <option key={l} value={l} />)}
-            </datalist>
-          </div>
+          {show('location') && (
+            <div>
+              <label className="label">Location</label>
+              <input list="known-locations-form" className="input" placeholder="e.g. Pantry, Fridge…"
+                value={form.location} onChange={e => set('location', e.target.value)} />
+              <datalist id="known-locations-form">
+                {[...new Set([...PRESET_LOCATIONS, ...(locationNames ?? [])])].map(l => <option key={l} value={l} />)}
+              </datalist>
+            </div>
+          )}
         </div>
+
         {form.categorySelect === '__custom' && (
           <div>
             <label className="label">Custom category name</label>
@@ -128,85 +121,129 @@ export default function InventoryForm({ item, locationNames, storeNames, onClose
           </div>
         )}
 
-        {/* ── Stock ─────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="label">Quantity</label>
-            <input type="number" min="0" step="any" className="input"
-              value={form.quantity} onChange={e => set('quantity', e.target.value)} />
+        {/* ── Unit (batch categories) ───────────────────────────────────── */}
+        {show('unit') && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Unit</label>
+              <input className="input" placeholder="e.g. pcs, lbs, oz…"
+                value={form.unit} onChange={e => set('unit', e.target.value)} />
+            </div>
           </div>
-          <div>
-            <label className="label">Unit</label>
-            <input className="input" placeholder="e.g. pcs, lbs, oz…"
-              value={form.unit} onChange={e => set('unit', e.target.value)} />
-          </div>
-        </div>
+        )}
 
-        {/* ── Dates ─────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="label">Best-before / Expiry date</label>
-            <input type="date" className="input"
-              value={form.best_before_date} onChange={e => set('best_before_date', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Purchase date</label>
-            <input type="date" className="input"
-              value={form.purchase_date} onChange={e => set('purchase_date', e.target.value)} />
-          </div>
-        </div>
+        {isBatch && (
+          <p className="text-xs text-indigo-600 bg-indigo-50 rounded-lg px-3 py-2">
+            Quantity and expiry dates are tracked per batch — add batches from the item detail view after saving.
+          </p>
+        )}
 
-        {/* ── Purchase info ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="label">Store</label>
-            <input
-              list="known-stores-inv"
-              className="input"
-              placeholder="Where was it purchased?"
-              value={form.store}
-              onChange={e => set('store', e.target.value)}
-            />
-            <datalist id="known-stores-inv">
-              {storeNames.map(s => <option key={s} value={s} />)}
-            </datalist>
+        {/* ── Stock (non-batch) ─────────────────────────────────────────── */}
+        {!isBatch && show('quantity') && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Quantity</label>
+              <input type="number" min="0" step="any" className="input"
+                value={form.quantity} onChange={e => set('quantity', e.target.value)} />
+            </div>
+            {show('unit') && (
+              <div>
+                <label className="label">Unit</label>
+                <input className="input" placeholder="e.g. pcs, lbs, oz…"
+                  value={form.unit} onChange={e => set('unit', e.target.value)} />
+              </div>
+            )}
           </div>
-          <div>
-            <label className="label">Purchase price ($)</label>
-            <input type="number" min="0" step="0.01" placeholder="0.00" className="input"
-              value={form.purchase_price} onChange={e => set('purchase_price', e.target.value)} />
+        )}
+
+        {/* ── Dates (non-batch) ─────────────────────────────────────────── */}
+        {!isBatch && (show('best_before_date') || show('purchase_date')) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {show('best_before_date') && (
+              <div>
+                <label className="label">Best-before / Expiry date</label>
+                <input type="date" className="input"
+                  value={form.best_before_date} onChange={e => set('best_before_date', e.target.value)} />
+              </div>
+            )}
+            {show('purchase_date') && (
+              <div>
+                <label className="label">Purchase date</label>
+                <input type="date" className="input"
+                  value={form.purchase_date} onChange={e => set('purchase_date', e.target.value)} />
+              </div>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* ── Purchase info (non-batch) ─────────────────────────────────── */}
+        {!isBatch && (show('store') || show('purchase_price')) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {show('store') && (
+              <div>
+                <label className="label">Store</label>
+                <input list="known-stores-inv" className="input" placeholder="Where was it purchased?"
+                  value={form.store} onChange={e => set('store', e.target.value)} />
+                <datalist id="known-stores-inv">
+                  {(storeNames ?? []).map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+            )}
+            {show('purchase_price') && (
+              <div>
+                <label className="label">Purchase price ($)</label>
+                <input type="number" min="0" step="0.01" placeholder="0.00" className="input"
+                  value={form.purchase_price} onChange={e => set('purchase_price', e.target.value)} />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Product info ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="label">Serial number</label>
-            <input className="input" placeholder="Optional"
-              value={form.serial_number} onChange={e => set('serial_number', e.target.value)} />
+        {(show('serial_number') || show('model_number') || show('estimated_value')) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {show('serial_number') && (
+              <div>
+                <label className="label">Serial number</label>
+                <input className="input" placeholder="Optional"
+                  value={form.serial_number} onChange={e => set('serial_number', e.target.value)} />
+              </div>
+            )}
+            {show('model_number') && (
+              <div>
+                <label className="label">Model number</label>
+                <input className="input" placeholder="Optional"
+                  value={form.model_number} onChange={e => set('model_number', e.target.value)} />
+              </div>
+            )}
+            {show('estimated_value') && (
+              <div>
+                <label className="label">Estimated value ($)</label>
+                <input type="number" min="0" step="0.01" placeholder="0.00" className="input"
+                  value={form.estimated_value} onChange={e => set('estimated_value', e.target.value)} />
+              </div>
+            )}
           </div>
-          <div>
-            <label className="label">Model number</label>
-            <input className="input" placeholder="Optional"
-              value={form.model_number} onChange={e => set('model_number', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Estimated current value ($)</label>
-            <input type="number" min="0" step="0.01" placeholder="0.00" className="input"
-              value={form.estimated_value} onChange={e => set('estimated_value', e.target.value)} />
-          </div>
-        </div>
+        )}
 
-        {/* ── Notes ─────────────────────────────────────────────────────── */}
-        <div>
-          <label className="label">Notes</label>
-          <textarea className="input resize-none" rows={2}
-            value={form.notes} onChange={e => set('notes', e.target.value)} />
-        </div>
+        {/* ── Description + Notes ───────────────────────────────────────── */}
+        {show('description') && (
+          <div>
+            <label className="label">Description</label>
+            <textarea className="input resize-none" rows={2}
+              value={form.description} onChange={e => set('description', e.target.value)} />
+          </div>
+        )}
+        {show('notes') && (
+          <div>
+            <label className="label">Notes</label>
+            <textarea className="input resize-none" rows={2}
+              value={form.notes} onChange={e => set('notes', e.target.value)} />
+          </div>
+        )}
 
         {/* ── Footer ────────────────────────────────────────────────────── */}
         {error && <p className="text-sm text-red-600">{error}</p>}
-
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t border-gray-100">
           <button type="button" className="btn-secondary w-full sm:w-auto justify-center" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn-primary w-full sm:w-auto justify-center" disabled={saving}>

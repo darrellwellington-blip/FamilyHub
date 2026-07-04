@@ -20,6 +20,27 @@ export const PRESET_LOCATIONS = [
   'Basement', 'Bathroom', 'Laundry Room', 'Office',
 ]
 
+// Which categories use stacked batches (qty + best_before_date per batch)
+export const BATCH_CATEGORIES = new Set(['Food', 'Beverages', 'Cleaning', 'Personal Care'])
+
+// Which fields to show in the form per category
+// 'batch_fields' applies to individual batch rows (only used when category is batch-capable)
+export const CATEGORY_FIELDS = {
+  Food:           { item: ['unit', 'location', 'description', 'notes'],                                                     batch: ['quantity', 'best_before_date', 'purchase_date', 'purchase_price', 'store'] },
+  Beverages:      { item: ['unit', 'location', 'description', 'notes'],                                                     batch: ['quantity', 'best_before_date', 'purchase_date', 'purchase_price', 'store'] },
+  Electronics:    { item: ['serial_number', 'model_number', 'estimated_value', 'purchase_date', 'purchase_price', 'store', 'location', 'description', 'notes'] },
+  Appliances:     { item: ['serial_number', 'model_number', 'estimated_value', 'purchase_date', 'purchase_price', 'store', 'location', 'description', 'notes'] },
+  Furniture:      { item: ['estimated_value', 'purchase_date', 'purchase_price', 'store', 'location', 'description', 'notes'] },
+  Tools:          { item: ['serial_number', 'model_number', 'estimated_value', 'purchase_date', 'purchase_price', 'store', 'location', 'description', 'notes'] },
+  Cleaning:       { item: ['unit', 'location', 'description', 'notes'],                                                     batch: ['quantity', 'best_before_date', 'purchase_date', 'purchase_price', 'store'] },
+  'Personal Care':{ item: ['unit', 'location', 'description', 'notes'],                                                     batch: ['quantity', 'best_before_date', 'purchase_date', 'purchase_price', 'store'] },
+  Storage:        { item: ['estimated_value', 'purchase_date', 'purchase_price', 'store', 'location', 'description', 'notes'] },
+}
+
+export function categoryFields(category) {
+  return CATEGORY_FIELDS[category] ?? { item: ['quantity', 'unit', 'best_before_date', 'purchase_date', 'purchase_price', 'store', 'serial_number', 'model_number', 'estimated_value', 'location', 'description', 'notes'] }
+}
+
 const DATE_FMT  = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 const MONEY_FMT = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 
@@ -29,11 +50,24 @@ export const fmtMoney = (n) => n != null ? MONEY_FMT.format(n) : '—'
 // ── Expiry helpers ────────────────────────────────────────────────────────────
 
 export function daysUntilExpiry(item) {
-  if (!item.best_before_date) return null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const exp = new Date(item.best_before_date + 'T12:00:00')
-  return Math.round((exp - today) / 86_400_000)
+  // Use soonest batch date if batches exist, otherwise fall back to item field
+  const dates = (item.batches?.length
+    ? item.batches.map(b => b.best_before_date).filter(Boolean)
+    : [item.best_before_date].filter(Boolean)
+  )
+  if (!dates.length) return null
+  const soonest = dates.sort()[0]
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  return Math.round((new Date(soonest + 'T12:00:00') - today) / 86_400_000)
+}
+
+// Total quantity: sum of batches or fall back to item.quantity
+export function totalQuantity(item) {
+  if (item.batches?.length) {
+    const sum = item.batches.reduce((acc, b) => acc + (Number(b.quantity) || 0), 0)
+    return sum || null
+  }
+  return item.quantity ?? null
 }
 
 export function expiryInfo(item) {
@@ -42,7 +76,12 @@ export function expiryInfo(item) {
   if (days < 0)   return { days, label: `Expired ${Math.abs(days)}d ago`,   status: 'expired' }
   if (days === 0) return { days, label: 'Expires today',                     status: 'expiring-soon' }
   if (days <= 7)  return { days, label: `Expires in ${days} day${days !== 1 ? 's' : ''}`, status: 'expiring-soon' }
-  return           { days, label: `Best before ${fmtDate(item.best_before_date)}`, status: 'ok' }
+  // Show soonest batch date
+  const dates = (item.batches?.length
+    ? item.batches.map(b => b.best_before_date).filter(Boolean)
+    : [item.best_before_date].filter(Boolean)
+  )
+  return { days, label: `Best before ${fmtDate(dates.sort()[0])}`, status: 'ok' }
 }
 
 export const EXPIRY_CARD = {

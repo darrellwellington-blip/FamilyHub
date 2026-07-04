@@ -49,20 +49,26 @@ export const categoriesApi = {
 
 // ─── Inventory ────────────────────────────────────────────────────────────────
 
+const INVENTORY_SELECT = '*, batches:inventory_batches(id, quantity, unit, best_before_date, purchase_date, purchase_price, store, notes, added_at)'
+
 export const inventoryApi = {
   list: (params = {}) => {
-    let q = supabase.from('inventory_items').select('*').order('name')
+    let q = supabase.from('inventory_items').select(INVENTORY_SELECT).order('name')
     if (params.status)   q = q.eq('status', params.status)
     if (params.category) q = q.eq('category', params.category)
     if (params.q)        q = q.ilike('name', `%${params.q}%`)
     return sb(q)
   },
-  get:     (id)       => sb(supabase.from('inventory_items').select('*').eq('id', id).single()),
-  create:  (data)     => sb(supabase.from('inventory_items').insert(data).select().single()),
-  update:  (id, data) => sb(supabase.from('inventory_items').update({ ...data, updated_at: new Date().toISOString() }).eq('id', id).select().single()),
+  get:     (id)       => sb(supabase.from('inventory_items').select(INVENTORY_SELECT).eq('id', id).single()),
+  create:  (data)     => sb(supabase.from('inventory_items').insert(data).select(INVENTORY_SELECT).single()),
+  update:  (id, data) => sb(supabase.from('inventory_items').update({ ...data, updated_at: new Date().toISOString() }).eq('id', id).select(INVENTORY_SELECT).single()),
   delete:  (id)       => sb(supabase.from('inventory_items').delete().eq('id', id)),
-  remove:  (id, data) => sb(supabase.from('inventory_items').update({ status: 'consumed', removed_at: new Date().toISOString(), ...data }).eq('id', id).select().single()),
-  restore: (id)       => sb(supabase.from('inventory_items').update({ status: 'active', removed_at: null, removal_notes: null }).eq('id', id).select().single()),
+  remove:  (id, data) => sb(supabase.from('inventory_items').update({ status: 'consumed', removed_at: new Date().toISOString(), ...data }).eq('id', id).select(INVENTORY_SELECT).single()),
+  restore: (id)       => sb(supabase.from('inventory_items').update({ status: 'active', removed_at: null, removal_notes: null }).eq('id', id).select(INVENTORY_SELECT).single()),
+
+  addBatch:    (itemId, data) => sb(supabase.from('inventory_batches').insert({ ...data, item_id: itemId }).select().single()),
+  updateBatch: (id, data)     => sb(supabase.from('inventory_batches').update(data).eq('id', id).select().single()),
+  deleteBatch: (id)           => sb(supabase.from('inventory_batches').delete().eq('id', id)),
 }
 
 // ─── Purchases (expense tracker) ─────────────────────────────────────────────

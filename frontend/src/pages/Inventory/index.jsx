@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { inventoryApi } from '../../api'
 import {
   sortItems, groupByCategory, sortedCategoryKeys,
-  expiryInfo, EXPIRY_CARD, EXPIRY_BADGE,
+  expiryInfo, totalQuantity, EXPIRY_CARD, EXPIRY_BADGE,
   CATEGORY_ICONS, PRESET_CATEGORIES, fmtDate,
 } from './inventoryUtils'
 import InventoryDetail  from './InventoryDetail'
@@ -246,8 +246,8 @@ function ItemCard({ item, onClick }) {
         <p className="text-xs text-gray-400 mt-0.5">
           {[
             item.location,
-            item.quantity != null
-              ? `${item.quantity}${item.unit ? ' ' + item.unit : ''}`
+            totalQuantity(item) != null
+              ? `${totalQuantity(item)}${item.unit ? ' ' + item.unit : ''}`
               : null,
           ].filter(Boolean).join(' · ')}
         </p>
