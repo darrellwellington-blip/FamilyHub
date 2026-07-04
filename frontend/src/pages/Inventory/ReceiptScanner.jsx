@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { inventoryApi } from '../../api'
 import { supabase } from '../../supabaseClient'
 import { Modal } from '../Tasks/TaskForm'
@@ -63,6 +63,10 @@ async function scanReceipt(file) {
   }
 
   const json = await res.json()
+  if (res.status === 429 && json.error === 'rate_limited') {
+    const secs = json.retryAfter ?? 60
+    throw Object.assign(new Error(`rate_limited`), { retryAfter: secs })
+  }
   if (!res.ok || json.error) throw new Error(json.error ?? `Server error ${res.status}`)
   return json.items
 }
@@ -139,8 +143,16 @@ export default function ReceiptScanner({ onClose, onAdded }) {
   const [preview,  setPreview]  = useState(null)
   const [store,    setStore]    = useState('')
   const [saveProgress, setSaveProgress] = useState(null) // '3 / 8'
+  const [countdown,    setCountdown]    = useState(null) // seconds remaining before retry allowed
   const fileRef    = useRef(null)
   const cameraRef  = useRef(null)
+
+  useEffect(() => {
+    if (!countdown) return
+    if (countdown <= 0) { setCountdown(null); return }
+    const t = setTimeout(() => setCountdown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [countdown])
 
   const handleFile = async (file) => {
     if (!file) return
@@ -158,7 +170,12 @@ export default function ReceiptScanner({ onClose, onAdded }) {
       setSelected(new Set(withIds.map(i => i._id)))
       setStage('review')
     } catch (e) {
-      setError(e.message)
+      if (e.retryAfter) {
+        setCountdown(e.retryAfter)
+        setError(`Rate limited by Gemini — please wait before trying again.`)
+      } else {
+        setError(e.message)
+      }
       setStage('pick')
     }
   }
@@ -224,16 +241,29 @@ export default function ReceiptScanner({ onClose, onAdded }) {
               Take a photo of your grocery receipt or choose an existing photo. Gemini will extract the items automatically.
             </p>
             {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+            {countdown > 0 && (
+              <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                <svg className="animate-spin h-4 w-4 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                <span className="text-sm text-amber-700">
+                  Retry available in <span className="font-bold tabular-nums">{countdown}s</span>
+                </span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <button
-                className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-2 py-8 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                disabled={!!countdown}
+                className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-2 py-8 hover:border-indigo-300 hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 onClick={() => cameraRef.current?.click()}
               >
                 <span className="text-3xl">📷</span>
                 <span className="text-sm font-medium text-gray-600">Take Photo</span>
               </button>
               <button
-                className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-2 py-8 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                disabled={!!countdown}
+                className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-2 py-8 hover:border-indigo-300 hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 onClick={() => fileRef.current?.click()}
               >
                 <span className="text-3xl">🖼️</span>

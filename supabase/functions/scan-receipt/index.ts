@@ -5,6 +5,15 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function parseRetrySeconds(headers: Headers, body: string): number {
+  const header = headers.get('Retry-After')
+  if (header) return parseInt(header)
+  const match = body.match(/retry after (\d+)/i)
+    ?? body.match(/"retryDelay"\s*:\s*"(\d+)s"/)
+    ?? body.match(/retry_delay[^0-9]*(\d+)/i)
+  return match ? parseInt(match[1]) : 60
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
@@ -45,6 +54,8 @@ Rules:
     })
 
     let geminiRes: Response | null = null
+    let lastErrBody = ''
+
     for (let attempt = 0; attempt < 2; attempt++) {
       geminiRes = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -52,30 +63,24 @@ Rules:
       )
       if (geminiRes.status !== 429) break
 
-      // Read wait time from Retry-After header or error message body
-      const retryAfterHeader = geminiRes.headers.get('Retry-After')
-      let waitMs = 5000
-      if (retryAfterHeader) {
-        waitMs = parseInt(retryAfterHeader) * 1000
-      } else {
-        const errText = await geminiRes.clone().text()
-        const match = errText.match(/retry after (\d+)/i) ?? errText.match(/"retryDelay":"(\d+)s"/)
-        if (match) waitMs = parseInt(match[1]) * 1000
+      lastErrBody = await geminiRes.clone().text()
+      if (attempt === 0) {
+        // Only retry once — wait the time Gemini specifies
+        const waitMs = Math.min(parseRetrySeconds(geminiRes.headers, lastErrBody) * 1000 + 500, 35000)
+        await new Promise(r => setTimeout(r, waitMs))
       }
-      // Cap at 35s — edge functions time out at 60s
-      waitMs = Math.min(waitMs + 1000, 35000)
-      await new Promise(r => setTimeout(r, waitMs))
     }
 
     if (!geminiRes!.ok) {
-      const errBody = await geminiRes!.text()
-      // Extract a human-readable message for quota errors
-      let message = `Gemini error: ${errBody}`
+      const errBody = lastErrBody || await geminiRes!.text()
       if (geminiRes!.status === 429) {
-        const match = errBody.match(/"message":"([^"]+)"/)
-        message = match ? `Rate limited: ${match[1]}` : 'Gemini rate limit hit — please wait a minute and try again.'
+        const retryAfter = parseRetrySeconds(geminiRes!.headers, errBody)
+        return new Response(
+          JSON.stringify({ error: 'rate_limited', retryAfter }),
+          { status: 429, headers: CORS }
+        )
       }
-      return new Response(JSON.stringify({ error: message }), { status: 502, headers: CORS })
+      return new Response(JSON.stringify({ error: `Gemini error: ${errBody}` }), { status: 502, headers: CORS })
     }
 
     const geminiData = await geminiRes!.json()
