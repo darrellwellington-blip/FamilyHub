@@ -6,26 +6,64 @@ import { PRESET_CATEGORIES, BATCH_CATEGORIES } from './inventoryUtils'
 
 const SUPABASE_URL = 'https://prewpubkkqoxwvqtxmbv.supabase.co'
 
+// Compress image to max 1200px and JPEG 0.85 quality before sending
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const MAX = 1200
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+        else                { width  = Math.round(width  * MAX / height); height = MAX }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width; canvas.height = height
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Compression failed')), 'image/jpeg', 0.85)
+    }
+    img.onerror = reject
+    img.src = url
+  })
+}
+
 async function scanReceipt(file) {
+  const compressed = await compressImage(file)
   const base64 = await new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result.split(',')[1])
     reader.onerror = reject
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(compressed)
   })
 
   const { data: { session } } = await supabase.auth.getSession()
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-receipt`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session?.access_token}`,
-    },
-    body: JSON.stringify({ image: base64, mimeType: file.type }),
-  })
+  if (!session) throw new Error('Not logged in — please refresh and try again.')
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30000)
+
+  let res
+  try {
+    res = await fetch(`${SUPABASE_URL}/functions/v1/scan-receipt`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ image: base64, mimeType: 'image/jpeg' }),
+      signal: controller.signal,
+    })
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Request timed out — try a smaller or clearer photo.')
+    throw e
+  } finally {
+    clearTimeout(timeout)
+  }
 
   const json = await res.json()
-  if (!res.ok || json.error) throw new Error(json.error ?? 'Scan failed')
+  if (!res.ok || json.error) throw new Error(json.error ?? `Server error ${res.status}`)
   return json.items
 }
 
