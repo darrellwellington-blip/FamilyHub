@@ -6,44 +6,65 @@ import { PRESET_CATEGORIES, BATCH_CATEGORIES } from './inventoryUtils'
 
 const SUPABASE_URL = 'https://prewpubkkqoxwvqtxmbv.supabase.co'
 
-// Compress image to max 900px JPEG before sending.
-// Falls back to original file if canvas compression fails (e.g. HEIC on some browsers).
+// Compress image to max 900px JPEG. Resolves with original file on any failure.
+// 6s timeout guards against img.onload never firing (e.g. HEIC on some browsers).
 function compressImage(file) {
   return new Promise((resolve) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      try {
-        const MAX = 900
-        let { width, height } = img
-        if (width > MAX || height > MAX) {
-          if (width > height) { height = Math.round(height * MAX / width); width = MAX }
-          else                { width  = Math.round(width  * MAX / height); height = MAX }
-        }
-        const canvas = document.createElement('canvas')
-        canvas.width = width; canvas.height = height
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
-        canvas.toBlob(blob => {
-          if (blob && blob.size > 0) {
-            console.log(`Compressed: ${(file.size/1024).toFixed(0)}KB → ${(blob.size/1024).toFixed(0)}KB`)
-            resolve(blob)
-          } else {
-            console.warn('Canvas compression produced empty blob, using original')
-            resolve(file)
-          }
-        }, 'image/jpeg', 0.75)
-      } catch (e) {
-        console.warn('Canvas compression failed, using original:', e)
-        resolve(file)
-      }
-    }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      console.warn('Image load failed, using original file')
+    const done = (result) => { clearTimeout(timer); resolve(result) }
+    // Fallback: if nothing works within 6s, send original
+    const timer = setTimeout(() => {
+      console.warn('Compression timed out, using original file')
       resolve(file)
+    }, 6000)
+
+    // Try createImageBitmap first — wider format support than img element
+    if (typeof createImageBitmap !== 'undefined') {
+      createImageBitmap(file).then(bitmap => {
+        try {
+          const MAX = 900
+          let { width, height } = bitmap
+          if (width > MAX || height > MAX) {
+            if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+            else                { width  = Math.round(width  * MAX / height); height = MAX }
+          }
+          const canvas = document.createElement('canvas')
+          canvas.width = width; canvas.height = height
+          canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height)
+          bitmap.close?.()
+          canvas.toBlob(blob => {
+            if (blob?.size > 0) {
+              console.log(`Compressed: ${(file.size/1024).toFixed(0)}KB → ${(blob.size/1024).toFixed(0)}KB`)
+              done(blob)
+            } else {
+              done(file)
+            }
+          }, 'image/jpeg', 0.75)
+        } catch {
+          done(file)
+        }
+      }).catch(() => done(file))
+    } else {
+      // Fallback: classic img element
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        try {
+          const MAX = 900
+          let { width, height } = img
+          if (width > MAX || height > MAX) {
+            if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+            else                { width  = Math.round(width  * MAX / height); height = MAX }
+          }
+          const canvas = document.createElement('canvas')
+          canvas.width = width; canvas.height = height
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+          canvas.toBlob(blob => done(blob?.size > 0 ? blob : file), 'image/jpeg', 0.75)
+        } catch { done(file) }
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); done(file) }
+      img.src = url
     }
-    img.src = url
   })
 }
 
@@ -180,6 +201,7 @@ export default function ReceiptScanner({ onClose, onAdded }) {
     if (fileRef.current)   fileRef.current.value = ''
     if (cameraRef.current) cameraRef.current.value = ''
     setPreview(URL.createObjectURL(file))
+    setFileSize(Math.round(file.size / 1024)) // show original size immediately; updated after compression
     setStage('scanning')
     setError(null)
     try {
