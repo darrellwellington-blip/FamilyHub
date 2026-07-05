@@ -240,7 +240,7 @@ export const mealsApi = {
   getWeekPlan: async (ws) => {
     const slots = await sb(
       supabase.from('meal_plan_slots')
-        .select(`*, meal:meals(id,name,photo_path,meal_ratings(*)), restaurant:restaurants(id,name), cook:users!cook_id(id,name), attendees:meal_plan_slot_attendees(user_id, user:users(id,name))`)
+        .select(`*, meal:meals(id,name,photo_path,meal_ratings(*)), restaurant:restaurants(id,name), cook:users!cook_id(id,name), attendees:meal_plan_slot_attendees(user_id, user:users(id,name)), sides_note`)
         .eq('week_start', ws)
     )
     // Reshape into { week_start, slots: { [day]: { [type]: slot } } }
@@ -268,6 +268,12 @@ export const mealsApi = {
       p_cook_id:        data.cook_id        ?? null,
       p_attendee_ids:   data.attendees       ?? null,
     }))
+    // sides_note isn't in the RPC — update directly
+    await sb(supabase.from('meal_plan_slots')
+      .update({ sides_note: data.sides_note ?? null })
+      .eq('week_start', ws)
+      .eq('day_of_week', Number(day))
+      .eq('meal_type', mt))
   },
 }
 

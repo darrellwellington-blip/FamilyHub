@@ -178,9 +178,14 @@ function SlotCell({ slot, onRate }) {
     return (
       <div className="relative h-full px-1.5 py-1 overflow-hidden">
         {RateBtn}
-        <p className="text-xs font-medium text-gray-800 leading-tight line-clamp-3">
+        <p className="text-xs font-medium text-gray-800 leading-tight line-clamp-2">
           {slot.meal.name}
         </p>
+        {slot.sides_note && (
+          <p className="text-xs text-gray-400 leading-tight truncate mt-0.5">
+            + {slot.sides_note}
+          </p>
+        )}
       </div>
     )
   }
@@ -235,6 +240,7 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
   const [cookId,        setCookId]        = useState(slot?.cook_id ?? null)
   const [ratingOpen,    setRatingOpen]    = useState(false)
   const [search,        setSearch]        = useState('')
+  const [sidesNote,     setSidesNote]     = useState(slot?.sides_note ?? '')
   const [saving,        setSaving]        = useState(false)
   const [addingMeal,    setAddingMeal]    = useState(false)
   const [addingRest,    setAddingRest]    = useState(false)
@@ -296,6 +302,7 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
         leftovers_note: slotType === 'leftovers'  ? leftoversNote.trim() || null : null,
         attendees:      [...attendees],
         cook_id:        slotType === 'meal' ? cookId : null,
+        sides_note:     slotType === 'meal' ? (sidesNote.trim() || null) : null,
       })
       await onSaved()
     } catch {
@@ -422,6 +429,37 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Side dishes */}
+          {slotType === 'meal' && (
+            <div>
+              <label className="label">Side dishes <span className="text-gray-400 font-normal">(optional)</span></label>
+              <div className="flex flex-wrap gap-1 mb-2">
+                {meals.filter(m => m.category === 'Side Dish').map(m => {
+                  const already = sidesNote.toLowerCase().includes(m.name.toLowerCase())
+                  return (
+                    <button key={m.id} type="button"
+                      onClick={() => {
+                        if (already) {
+                          setSidesNote(prev => prev.split(',').map(s => s.trim()).filter(s => s.toLowerCase() !== m.name.toLowerCase()).join(', '))
+                        } else {
+                          setSidesNote(prev => prev.trim() ? `${prev.trim()}, ${m.name}` : m.name)
+                        }
+                      }}
+                      className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                        already
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
+                      }`}>
+                      {already ? '✓ ' : ''}{m.name}
+                    </button>
+                  )
+                })}
+              </div>
+              <input className="input" placeholder="e.g. Mashed potatoes, green beans…"
+                value={sidesNote} onChange={e => setSidesNote(e.target.value)} />
             </div>
           )}
 

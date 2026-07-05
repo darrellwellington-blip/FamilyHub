@@ -1,5 +1,5 @@
 export const MEAL_CATEGORIES = [
-  'Breakfast', 'Lunch', 'Dinner', 'Snack', 'Dessert', 'Soup', 'Salad', 'Other',
+  'Breakfast', 'Lunch', 'Dinner', 'Side Dish', 'Snack', 'Dessert', 'Soup', 'Salad', 'Other',
 ]
 
 export const DAY_LABELS    = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
