@@ -94,7 +94,7 @@ export default function MealPlanTab({ meals, restaurants, onMealsChanged }) {
                     {MEAL_TYPE_LABELS[mealType]}
                   </td>
                   {[0,1,2,3,4,5,6].map(day => {
-                    const slot    = plan?.days?.[day]?.[mealType] ?? null
+                    const slot    = plan?.slots?.[day]?.[mealType] ?? null
                     const dateISO = toISO(addDays(weekStart, day))
                     const isToday = dateISO === todayISO
                     return (

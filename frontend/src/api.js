@@ -266,7 +266,7 @@ export const mealsApi = {
       p_restaurant_id:  data.restaurant_id  ?? null,
       p_leftovers_note: data.leftovers_note ?? null,
       p_cook_id:        data.cook_id        ?? null,
-      p_attendee_ids:   data.attendee_ids   ?? null,
+      p_attendee_ids:   data.attendees       ?? null,
     }))
   },
 }
