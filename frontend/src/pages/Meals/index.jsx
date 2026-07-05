@@ -7,7 +7,7 @@ import RestaurantsTab from './RestaurantsTab'
 
 const TABS = [
   { key: 'plan',        label: '📅 Meal Plan' },
-  { key: 'library',     label: '📖 Library' },
+  { key: 'library',     label: '📖 Recipes' },
   { key: 'restaurants', label: '🍽️ Restaurants' },
   { key: 'try',         label: '🌟 Want to Try' },
 ]
