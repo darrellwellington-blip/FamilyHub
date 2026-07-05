@@ -190,13 +190,16 @@ function SlotCell({ slot, onRate }) {
     )
   }
   if (slot.slot_type === 'restaurant' && slot.restaurant) {
+    const orderCount = slot.orders?.length ?? 0
     return (
       <div className="relative h-full px-1.5 py-1 overflow-hidden">
         {RateBtn}
-        <p className="text-xs text-gray-400">🍽️</p>
         <p className="text-xs font-medium text-gray-800 leading-tight line-clamp-2">
-          {slot.restaurant.name}
+          🍽️ {slot.restaurant.name}
         </p>
+        {orderCount > 0 && (
+          <p className="text-xs text-gray-400 mt-0.5">{orderCount} dish{orderCount !== 1 ? 'es' : ''}</p>
+        )}
       </div>
     )
   }
@@ -220,6 +223,73 @@ function SlotCell({ slot, onRate }) {
   return null
 }
 
+// ── Restaurant orders ─────────────────────────────────────────────────────────
+
+function OrdersSection({ orders, attendeeIds, users, onChange }) {
+  const [inputs, setInputs] = useState({}) // keyed by userId (null = shared)
+
+  const setInput = (key, val) => setInputs(p => ({ ...p, [key]: val }))
+
+  const addDish = (userId) => {
+    const key = userId ?? 'shared'
+    const name = (inputs[key] ?? '').trim()
+    if (!name) return
+    onChange(prev => [...prev, { user_id: userId ?? null, dish_name: name }])
+    setInput(key, '')
+  }
+
+  const removeDish = (idx) => onChange(prev => prev.filter((_, i) => i !== idx))
+
+  const rows = [
+    { key: 'shared', userId: null, label: 'Shared' },
+    ...attendeeIds.map(id => ({
+      key: String(id),
+      userId: id,
+      label: users.find(u => u.id === id)?.name ?? `User ${id}`,
+    })),
+  ]
+
+  return (
+    <div className="flex flex-col gap-3">
+      <label className="label mb-0">What did everyone order?</label>
+      {rows.map(({ key, userId, label }) => {
+        const myDishes = orders.filter(o => (o.user_id ?? null) === (userId ?? null))
+        return (
+          <div key={key}>
+            <p className="text-xs font-medium text-gray-500 mb-1">
+              {userId === null ? '🍽️ Shared / for the table' : `👤 ${label}`}
+            </p>
+            <div className="flex flex-wrap gap-1 mb-1">
+              {myDishes.map((d, i) => {
+                const globalIdx = orders.indexOf(d)
+                return (
+                  <span key={i}
+                    className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+                    {d.dish_name}
+                    <button type="button" onClick={() => removeDish(globalIdx)}
+                      className="text-gray-400 hover:text-red-500 leading-none ml-0.5">×</button>
+                  </span>
+                )
+              })}
+            </div>
+            <div className="flex gap-2">
+              <input
+                className="input py-1 text-sm flex-1"
+                placeholder={userId === null ? 'e.g. Garlic bread, Calamari…' : 'Dish name…'}
+                value={inputs[key] ?? ''}
+                onChange={e => setInput(key, e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDish(userId) } }}
+              />
+              <button type="button" className="btn-secondary text-sm px-3"
+                onClick={() => addDish(userId)}>Add</button>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Slot edit modal ───────────────────────────────────────────────────────────
 
 const SLOT_TYPES = [
@@ -241,6 +311,7 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
   const [ratingOpen,    setRatingOpen]    = useState(false)
   const [search,        setSearch]        = useState('')
   const [sidesNote,     setSidesNote]     = useState(slot?.sides_note ?? '')
+  const [orders,        setOrders]        = useState(slot?.orders ?? [])
   const [saving,        setSaving]        = useState(false)
   const [addingMeal,    setAddingMeal]    = useState(false)
   const [addingRest,    setAddingRest]    = useState(false)
@@ -302,7 +373,8 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
         leftovers_note: slotType === 'leftovers'  ? leftoversNote.trim() || null : null,
         attendees:      [...attendees],
         cook_id:        slotType === 'meal' ? cookId : null,
-        sides_note:     slotType === 'meal' ? (sidesNote.trim() || null) : null,
+        sides_note:     slotType === 'meal'       ? (sidesNote.trim() || null) : null,
+        orders:         slotType === 'restaurant' ? orders : [],
       })
       await onSaved()
     } catch {
@@ -430,6 +502,16 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
                 </div>
               )}
             </div>
+          )}
+
+          {/* Restaurant orders */}
+          {slotType === 'restaurant' && restaurantId && (
+            <OrdersSection
+              orders={orders}
+              attendeeIds={[...attendees]}
+              users={users}
+              onChange={setOrders}
+            />
           )}
 
           {/* Side dishes */}

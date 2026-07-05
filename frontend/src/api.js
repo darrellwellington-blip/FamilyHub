@@ -240,7 +240,7 @@ export const mealsApi = {
   getWeekPlan: async (ws) => {
     const slots = await sb(
       supabase.from('meal_plan_slots')
-        .select(`*, meal:meals(id,name,photo_path,meal_ratings(*)), restaurant:restaurants(id,name), cook:users!cook_id(id,name), attendees:meal_plan_slot_attendees(user_id, user:users(id,name)), sides_note`)
+        .select(`*, meal:meals(id,name,photo_path,meal_ratings(*)), restaurant:restaurants(id,name), cook:users!cook_id(id,name), attendees:meal_plan_slot_attendees(user_id, user:users(id,name)), sides_note, orders:meal_plan_slot_orders(id, user_id, dish_name, notes, sort_order)`)
         .eq('week_start', ws)
     )
     // Reshape into { week_start, slots: { [day]: { [type]: slot } } }
@@ -268,12 +268,28 @@ export const mealsApi = {
       p_cook_id:        data.cook_id        ?? null,
       p_attendee_ids:   data.attendees       ?? null,
     }))
-    // sides_note isn't in the RPC — update directly
-    await sb(supabase.from('meal_plan_slots')
-      .update({ sides_note: data.sides_note ?? null })
-      .eq('week_start', ws)
-      .eq('day_of_week', Number(day))
-      .eq('meal_type', mt))
+    // sides_note and orders aren't in the RPC — update directly
+    const { data: slotRow } = await supabase.from('meal_plan_slots')
+      .select('id')
+      .eq('week_start', ws).eq('day_of_week', Number(day)).eq('meal_type', mt)
+      .single()
+    if (slotRow) {
+      await sb(supabase.from('meal_plan_slots')
+        .update({ sides_note: data.sides_note ?? null })
+        .eq('id', slotRow.id))
+      await sb(supabase.from('meal_plan_slot_orders').delete().eq('slot_id', slotRow.id))
+      if (data.orders?.length) {
+        await sb(supabase.from('meal_plan_slot_orders').insert(
+          data.orders.map((o, i) => ({
+            slot_id:    slotRow.id,
+            user_id:    o.user_id ?? null,
+            dish_name:  o.dish_name,
+            notes:      o.notes ?? null,
+            sort_order: i,
+          }))
+        ))
+      }
+    }
   },
 }
 
