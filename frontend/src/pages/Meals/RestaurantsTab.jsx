@@ -29,9 +29,10 @@ function Stars({ value, onChange, readonly = false }) {
 
 export default function RestaurantsTab({ restaurants, onChanged }) {
   const { currentUser, users } = useUser()
-  const [search,   setSearch]   = useState('')
-  const [viewing,  setViewing]  = useState(null)  // restaurant obj
-  const [editing,  setEditing]  = useState(null)  // null | 'new' | restaurant obj
+  const [search,    setSearch]    = useState('')
+  const [viewing,   setViewing]   = useState(null)  // restaurant obj
+  const [editing,   setEditing]   = useState(null)  // null | 'new' | restaurant obj
+  const [importing, setImporting] = useState(false)
 
   const filtered = restaurants.filter(r =>
     !search ||
@@ -60,9 +61,14 @@ export default function RestaurantsTab({ restaurants, onChanged }) {
       <div className="flex flex-wrap gap-3 items-center mb-5">
         <input className="input max-w-xs" placeholder="Search restaurants…"
           value={search} onChange={e => setSearch(e.target.value)} />
-        <button className="btn-primary ml-auto" onClick={() => setEditing('new')}>
-          + Add Restaurant
-        </button>
+        <div className="flex gap-2 ml-auto">
+          <button className="btn-secondary" onClick={() => setImporting(true)}>
+            ⬇ Import from Claude
+          </button>
+          <button className="btn-primary" onClick={() => setEditing('new')}>
+            + Add Restaurant
+          </button>
+        </div>
       </div>
 
       {/* ── Grid ────────────────────────────────────────────────────── */}
@@ -106,6 +112,14 @@ export default function RestaurantsTab({ restaurants, onChanged }) {
           restaurant={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
           onSaved={async () => { await onChanged(); setEditing(null) }}
+        />
+      )}
+
+      {/* ── Import modal ─────────────────────────────────────────────── */}
+      {importing && (
+        <ImportModal
+          onClose={() => setImporting(false)}
+          onImported={async () => { await onChanged(); setImporting(false) }}
         />
       )}
     </div>
@@ -453,6 +467,195 @@ function LogVisitModal({ restaurant, currentUser, onClose, onSaved }) {
         </div>
 
       </form>
+    </Modal>
+  )
+}
+
+// ── Import from Claude modal ──────────────────────────────────────────────────
+
+const CLAUDE_PROMPT = `Generate a list of restaurants as a JSON array. Use exactly this format (include all fields, use null if unknown):
+[
+  {
+    "name": "Restaurant Name",
+    "cuisine": "Cuisine type",
+    "address": "Street address",
+    "phone": "Phone number",
+    "website": "https://example.com",
+    "notes": "Notable dishes, hours, parking, etc."
+  }
+]`
+
+function parseClaudeResponse(text) {
+  // Strip markdown code fences if present
+  const stripped = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
+  // Find the first [ or { to locate the JSON
+  const start = stripped.search(/[\[{]/)
+  if (start === -1) throw new Error('No JSON found in the pasted text')
+  const jsonText = stripped.slice(start)
+  let parsed = JSON.parse(jsonText)
+  if (!Array.isArray(parsed)) parsed = [parsed]
+  return parsed.map(r => ({
+    name:    (r.name    ?? '').toString().trim(),
+    cuisine: (r.cuisine ?? '') || null,
+    address: (r.address ?? '') || null,
+    phone:   (r.phone   ?? '') || null,
+    website: (r.website ?? '') || null,
+    notes:   (r.notes   ?? '') || null,
+  })).filter(r => r.name)
+}
+
+function ImportModal({ onClose, onImported }) {
+  const [step,      setStep]      = useState('paste') // 'paste' | 'preview'
+  const [text,      setText]      = useState('')
+  const [parsed,    setParsed]    = useState([])
+  const [parseErr,  setParseErr]  = useState(null)
+  const [selected,  setSelected]  = useState(new Set())
+  const [importing, setImporting] = useState(false)
+  const [importErr, setImportErr] = useState(null)
+  const [copied,    setCopied]    = useState(false)
+
+  const copyPrompt = () => {
+    navigator.clipboard.writeText(CLAUDE_PROMPT).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  const handleParse = () => {
+    setParseErr(null)
+    try {
+      const rows = parseClaudeResponse(text)
+      if (rows.length === 0) { setParseErr('No valid restaurants found — check the format.'); return }
+      setParsed(rows)
+      setSelected(new Set(rows.map((_, i) => i)))
+      setStep('preview')
+    } catch (e) {
+      setParseErr(`Could not parse: ${e.message}`)
+    }
+  }
+
+  const handleImport = async () => {
+    setImporting(true)
+    setImportErr(null)
+    try {
+      const toAdd = parsed.filter((_, i) => selected.has(i))
+      await Promise.all(toAdd.map(r => mealsApi.createRestaurant(r)))
+      await onImported()
+    } catch (e) {
+      setImportErr(e.message)
+      setImporting(false)
+    }
+  }
+
+  const toggleAll = () => {
+    setSelected(prev => prev.size === parsed.length ? new Set() : new Set(parsed.map((_, i) => i)))
+  }
+
+  if (step === 'paste') {
+    return (
+      <Modal title="Import Restaurants from Claude" onClose={onClose} maxWidth="max-w-lg">
+        <div className="flex flex-col gap-4">
+
+          {/* Step 1: copy the prompt */}
+          <div className="rounded-xl bg-indigo-50 border border-indigo-100 p-4">
+            <p className="text-sm font-semibold text-indigo-800 mb-2">
+              Step 1 — Ask Claude to generate the list
+            </p>
+            <p className="text-xs text-indigo-700 mb-3">
+              Copy the prompt below, paste it into Claude, and add your city or any other details.
+            </p>
+            <pre className="text-xs bg-white rounded-lg border border-indigo-100 p-3 whitespace-pre-wrap text-gray-700 max-h-36 overflow-y-auto">
+              {CLAUDE_PROMPT}
+            </pre>
+            <button type="button" onClick={copyPrompt}
+              className={`mt-3 btn border text-sm w-full justify-center transition-colors ${
+                copied ? 'border-green-400 bg-green-50 text-green-700' : 'border-indigo-300 text-indigo-700 hover:bg-indigo-100'
+              }`}>
+              {copied ? '✓ Copied!' : '📋 Copy prompt'}
+            </button>
+          </div>
+
+          {/* Step 2: paste response */}
+          <div>
+            <p className="text-sm font-semibold text-gray-700 mb-2">
+              Step 2 — Paste Claude's response
+            </p>
+            <textarea
+              className="input resize-none font-mono text-xs"
+              rows={8}
+              placeholder={'Paste Claude\'s JSON response here…\n[\n  { "name": "...", "cuisine": "...", ... },\n  ...\n]'}
+              value={text}
+              onChange={e => { setText(e.target.value); setParseErr(null) }}
+            />
+            {parseErr && <p className="text-sm text-red-600 mt-1">{parseErr}</p>}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn-primary" onClick={handleParse} disabled={!text.trim()}>
+              Preview →
+            </button>
+          </div>
+        </div>
+      </Modal>
+    )
+  }
+
+  // Preview step
+  return (
+    <Modal title={`Import ${selected.size} of ${parsed.length} restaurants`} onClose={onClose} maxWidth="max-w-lg">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-600">
+            Uncheck any you don't want to import.
+          </p>
+          <button type="button" onClick={toggleAll}
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+            {selected.size === parsed.length ? 'Deselect all' : 'Select all'}
+          </button>
+        </div>
+
+        <div className="max-h-96 overflow-y-auto flex flex-col gap-2">
+          {parsed.map((r, i) => (
+            <label key={i}
+              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                selected.has(i)
+                  ? 'border-indigo-200 bg-indigo-50'
+                  : 'border-gray-100 bg-gray-50 opacity-50'
+              }`}>
+              <input type="checkbox" className="mt-0.5 shrink-0"
+                checked={selected.has(i)}
+                onChange={() => setSelected(prev => {
+                  const next = new Set(prev)
+                  next.has(i) ? next.delete(i) : next.add(i)
+                  return next
+                })} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900">{r.name}</p>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                  {r.cuisine && <span className="text-xs text-orange-600">{r.cuisine}</span>}
+                  {r.address && <span className="text-xs text-gray-400">📍 {r.address}</span>}
+                  {r.phone   && <span className="text-xs text-gray-400">📞 {r.phone}</span>}
+                </div>
+                {r.notes && <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{r.notes}</p>}
+              </div>
+            </label>
+          ))}
+        </div>
+
+        {importErr && <p className="text-sm text-red-600">{importErr}</p>}
+
+        <div className="flex justify-between gap-2 pt-2 border-t border-gray-100">
+          <button type="button" className="btn-secondary" onClick={() => setStep('paste')}>← Back</button>
+          <div className="flex gap-2">
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn-primary" onClick={handleImport}
+              disabled={importing || selected.size === 0}>
+              {importing ? 'Importing…' : `Import ${selected.size}`}
+            </button>
+          </div>
+        </div>
+      </div>
     </Modal>
   )
 }
