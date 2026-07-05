@@ -168,17 +168,31 @@ export const shoppingApi = {
 
 // ─── Meals ────────────────────────────────────────────────────────────────────
 
+// Convert [{user_id, rating}] array → {[userId]: rating} object
+function toRatingsMap(arr) {
+  const map = {}
+  for (const r of arr ?? []) if (r.user_id != null) map[String(r.user_id)] = r.rating
+  return map
+}
+// Convert [{user_id, vote}] array → {[userId]: vote} object
+function toVotesMap(arr) {
+  const map = {}
+  for (const v of arr ?? []) if (v.user_id != null) map[String(v.user_id)] = v.vote
+  return map
+}
+
 async function mealWithRatings(id) {
-  const meal    = await sb(supabase.from('meals').select('*, meal_ingredients(*), meal_ratings(*), meal_history(*)').eq('id', id).single())
-  return meal
+  const meal = await sb(supabase.from('meals').select('*, meal_ingredients(*), meal_ratings(*), meal_history(*)').eq('id', id).single())
+  return { ...meal, ratings: toRatingsMap(meal.meal_ratings) }
 }
 
 export const mealsApi = {
-  list: (params = {}) => {
-    let q = supabase.from('meals').select('*, meal_ratings(*), meal_history(id, made_at)').order('name')
+  list: async (params = {}) => {
+    let q = supabase.from('meals').select('*, meal_ratings(*), meal_plan_slots(week_start), meal_history(id, made_at)').order('name')
     if (params.category) q = q.eq('category', params.category)
     if (params.q)        q = q.ilike('name', `%${params.q}%`)
-    return sb(q)
+    const meals = await sb(q)
+    return meals.map(m => ({ ...m, ratings: toRatingsMap(m.meal_ratings) }))
   },
   create:  (data)     => sb(supabase.from('meals').insert(data).select().single()),
   update:  (id, data) => sb(supabase.from('meals').update(data).eq('id', id).select().single()),
@@ -203,7 +217,10 @@ export const mealsApi = {
     return mealWithRatings(id)
   },
 
-  listTry:   () => sb(supabase.from('meals_to_try').select('*, proposed_by_user:users!proposed_by(name), meal_try_votes(*)').order('proposed_at', { ascending: false })),
+  listTry: async () => {
+    const items = await sb(supabase.from('meals_to_try').select('*, proposed_by_user:users!proposed_by(name), meal_try_votes(*)').order('proposed_at', { ascending: false }))
+    return items.map(item => ({ ...item, votes: toVotesMap(item.meal_try_votes) }))
+  },
   createTry: (data) => sb(supabase.from('meals_to_try').insert(data).select().single()),
   deleteTry: (id)   => sb(supabase.from('meals_to_try').delete().eq('id', id)),
 
@@ -221,7 +238,10 @@ export const mealsApi = {
     return meal
   },
 
-  listRestaurants:  () => sb(supabase.from('restaurants').select('*, restaurant_ratings(*), restaurant_visits(id, visited_at)').order('name')),
+  listRestaurants: async () => {
+    const rests = await sb(supabase.from('restaurants').select('*, restaurant_ratings(*), restaurant_visits(id, visited_at)').order('name'))
+    return rests.map(r => ({ ...r, ratings: toRatingsMap(r.restaurant_ratings) }))
+  },
   createRestaurant: (data)     => sb(supabase.from('restaurants').insert(data).select().single()),
   updateRestaurant: (id, data) => sb(supabase.from('restaurants').update(data).eq('id', id).select().single()),
   deleteRestaurant: (id)       => sb(supabase.from('restaurants').delete().eq('id', id)),

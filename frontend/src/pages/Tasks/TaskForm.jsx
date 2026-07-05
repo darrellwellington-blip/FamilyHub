@@ -79,13 +79,6 @@ export default function TaskForm({ task, categories, allTasks = [], onClose, onS
       : [...form.seasonalMonths, m]
   )
 
-  const handlePhotoChange = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    setPhotoFile(file)
-    setPhotoPreview(URL.createObjectURL(file))
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.title.trim()) { setError('Title is required'); return }
@@ -529,7 +522,9 @@ function RequirementsSection({ taskId }) {
   const [showInvPicker, setShowInvPicker] = useState(false)
   const [showShopPicker, setShowShopPicker] = useState(false)
 
-  const load = async () => setReqs(await requirementsApi.list(taskId))
+  const load = async () => {
+    try { setReqs(await requirementsApi.list(taskId)) } catch { /* non-fatal */ }
+  }
   useEffect(() => { load() }, [taskId])
 
   const handleDelete = async (id) => {
@@ -608,7 +603,9 @@ function InventoryPickerModal({ onClose, onPicked }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    inventoryApi.list({ status: 'active' }).then(d => { setItems(d); setLoading(false) })
+    inventoryApi.list({ status: 'active' })
+      .then(d => { setItems(d); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [])
 
   const filtered = items.filter(i =>
@@ -645,16 +642,14 @@ function ShoppingPickerModal({ onClose, onAdded }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    shoppingApi.lists({ archived: false }).then(d => {
-      setLists(d)
-      if (d.length) setListId(String(d[0].id))
-      setLoading(false)
-    })
+    shoppingApi.lists({ archived: false })
+      .then(d => { setLists(d); if (d.length) setListId(String(d[0].id)); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [])
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!listId || !label.trim()) return
-    onAdded(Number(listId), label.trim())
+    try { await onAdded(Number(listId), label.trim()) } catch { /* caller handles */ }
   }
 
   return (

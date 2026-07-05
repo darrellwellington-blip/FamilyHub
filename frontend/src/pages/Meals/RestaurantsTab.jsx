@@ -352,8 +352,8 @@ function LogVisitModal({ restaurant, currentUser, onClose, onSaved }) {
     })
   }
 
-  const setOrder  = (uid, val) => setAttendees(p => ({ ...p, [uid]: { ...p[uid], order: val } }))
-  const setRating = (uid, val) => setAttendees(p => ({ ...p, [uid]: { ...p[uid], rating: val } }))
+  const setOrder  = (uid, val) => setAttendees(p => ({ ...p, [String(uid)]: { ...p[String(uid)], order: val } }))
+  const setRating = (uid, val) => setAttendees(p => ({ ...p, [String(uid)]: { ...p[String(uid)], rating: val } }))
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -434,10 +434,10 @@ function LogVisitModal({ restaurant, currentUser, onClose, onSaved }) {
                 <div key={uid} className="rounded-xl border border-gray-100 bg-gray-50 p-3 flex flex-col gap-2">
                   <p className="text-sm font-medium text-gray-700">{user?.name ?? 'Unknown'}</p>
                   <input className="input text-sm" placeholder="What did they order?"
-                    value={data.order} onChange={e => setOrder(Number(uid), e.target.value)} />
+                    value={data.order} onChange={e => setOrder(uid, e.target.value)} />
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400">Rating:</span>
-                    <Stars value={data.rating} onChange={v => setRating(Number(uid), v)} />
+                    <Stars value={data.rating} onChange={v => setRating(uid, v)} />
                     {data.rating && (
                       <button type="button" onClick={() => setRating(Number(uid), null)}
                         className="text-xs text-gray-300 hover:text-gray-500">clear</button>

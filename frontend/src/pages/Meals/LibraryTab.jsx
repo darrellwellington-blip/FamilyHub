@@ -36,7 +36,7 @@ function AddToShoppingModal({ ingredient, onClose }) {
   const [done,     setDone]     = useState(false)
 
   useEffect(() => {
-    shoppingApi.lists({ is_archived: false })
+    shoppingApi.lists({ archived: false })
       .then(data => {
         const active = data.filter(l => !l.is_archived && !l.completed_at)
         setLists(active)

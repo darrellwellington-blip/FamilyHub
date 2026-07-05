@@ -45,14 +45,18 @@ export default function Tasks() {
     try {
       const data = await tasksApi.list()
       setTasks(data)
+    } catch {
+      // keep existing task list on refresh failure; only clear on initial load
     } finally {
       setLoading(false)
     }
   }, [])
 
   const loadCategories = useCallback(async () => {
-    const data = await categoriesApi.list()
-    setCategories(data.map(c => c.name))
+    try {
+      const data = await categoriesApi.list()
+      setCategories(data.map(c => c.name))
+    } catch { /* non-fatal — preset categories still available */ }
   }, [])
 
   useEffect(() => { loadTasks(); loadCategories() }, [loadTasks, loadCategories])

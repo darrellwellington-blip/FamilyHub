@@ -21,14 +21,18 @@ export default function TryTab({ tryList, onChanged, onPromoted, onRestaurantsCh
 
   const handleVote = async (tryId, vote) => {
     if (!currentUser) return
-    await mealsApi.vote(tryId, { user_id: currentUser.id, vote })
-    await onChanged()
+    try {
+      await mealsApi.vote(tryId, { user_id: currentUser.id, vote })
+      await onChanged()
+    } catch { /* vote failure is silent — UI stays as-is */ }
   }
 
   const handleDelete = async (tryId, name) => {
     if (!confirm(`Remove "${name}" from the list?`)) return
-    await mealsApi.deleteTry(tryId)
-    await onChanged()
+    try {
+      await mealsApi.deleteTry(tryId)
+      await onChanged()
+    } catch { alert('Could not remove — please try again') }
   }
 
   return (

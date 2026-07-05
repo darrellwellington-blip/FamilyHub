@@ -196,6 +196,7 @@ export default function Inventory() {
       {viewing && (
         <InventoryDetail
           item={viewing}
+          storeNames={allStores}
           onClose={() => setViewing(null)}
           onEdit={openEdit}
           onRemove={openRemove}

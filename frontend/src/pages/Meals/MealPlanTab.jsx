@@ -16,6 +16,7 @@ export default function MealPlanTab({ meals, restaurants, onMealsChanged }) {
   const [ratingSlot,         setRatingSlot]         = useState(null)
   const [showSuggestions,    setShowSuggestions]    = useState(false)
   const [selectedSuggestion, setSelectedSuggestion] = useState(null)
+  const [assignError,        setAssignError]        = useState(null)
   const { users } = useUser()
   const [loadingPlan, setLoadingPlan] = useState(false)
 
@@ -38,6 +39,7 @@ export default function MealPlanTab({ meals, restaurants, onMealsChanged }) {
 
   const assignSuggestion = async (day, mealType) => {
     const s = selectedSuggestion
+    setAssignError(null)
     try {
       await mealsApi.updateSlot(weekISO, day, mealType, {
         slot_type:      s.type,
@@ -51,12 +53,15 @@ export default function MealPlanTab({ meals, restaurants, onMealsChanged }) {
       })
       const updated = await mealsApi.getWeekPlan(weekISO)
       setPlan(updated)
-    } catch { /* ignore */ }
+      setSelectedSuggestion(null)
+    } catch (e) {
+      setAssignError(e?.message ?? 'Failed to assign — please try again')
+    }
   }
 
-  const handleCellClick = (day, mealType, slot) => {
+  const handleCellClick = async (day, mealType, slot) => {
     if (selectedSuggestion) {
-      assignSuggestion(day, mealType)
+      await assignSuggestion(day, mealType)
       return
     }
     setEditingSlot({ day, mealType, slot })
@@ -104,6 +109,14 @@ export default function MealPlanTab({ meals, restaurants, onMealsChanged }) {
           selected={selectedSuggestion}
           onSelect={s => setSelectedSuggestion(prev => prev?.id === s.id && prev?.type === s.type ? null : s)}
         />
+      )}
+
+      {/* ── Assign error ─────────────────────────────────────────────── */}
+      {assignError && (
+        <div className="mb-3 px-4 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center justify-between">
+          <span>{assignError}</span>
+          <button onClick={() => setAssignError(null)} className="ml-3 text-red-400 hover:text-red-600">×</button>
+        </div>
       )}
 
       {/* ── Assignment banner ─────────────────────────────────────────── */}
@@ -188,7 +201,7 @@ export default function MealPlanTab({ meals, restaurants, onMealsChanged }) {
             title={`Rate: ${item.name}`}
             item={item}
             users={users}
-            attendeeIds={ratingSlot.attendees ?? []}
+            attendeeIds={(ratingSlot.attendees ?? []).map(u => u.id)}
             onClose={() => setRatingSlot(null)}
             onRate={async (userId, rating) => {
               if (isMeal) await mealsApi.rate(ratingSlot.meal.id, { user_id: userId, rating })
@@ -464,6 +477,7 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
   const [sidesNote,      setSidesNote]      = useState(slot?.sides_note ?? '')
   const [orders,         setOrders]         = useState(slot?.orders ?? [])
   const [saving,         setSaving]         = useState(false)
+  const [error,          setError]          = useState(null)
   const [addingMeal,     setAddingMeal]     = useState(false)
   const [addingRest,     setAddingRest]     = useState(false)
   const [newRestName,    setNewRestName]    = useState('')
@@ -517,6 +531,7 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
 
   const handleSave = async () => {
     setSaving(true)
+    setError(null)
     try {
       await mealsApi.updateSlot(weekISO, day, mealType, {
         slot_type:      slotType,
@@ -529,7 +544,8 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
         orders:         slotType === 'restaurant' ? orders : [],
       })
       await onSaved()
-    } catch {
+    } catch (e) {
+      setError(e?.message ?? 'Save failed — please try again')
       setSaving(false)
     }
   }
@@ -760,6 +776,8 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
                 value={leftoversNote} onChange={e => setLeftoversNote(e.target.value)} autoFocus />
             </div>
           )}
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex justify-between gap-2 pt-2 border-t border-gray-100">
             {((slotType === 'meal' && slot?.meal) || (slotType === 'restaurant' && slot?.restaurant)) ? (
