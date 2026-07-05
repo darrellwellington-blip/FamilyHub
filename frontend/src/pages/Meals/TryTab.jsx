@@ -10,11 +10,11 @@ const VOTES = [
   { key: 'no',    icon: '👎', label: 'No thanks', activeClass: 'bg-red-100   text-red-700   border-red-400'   },
 ]
 
-export default function TryTab({ tryList, onChanged, onPromoted }) {
+export default function TryTab({ tryList, onChanged, onPromoted, onRestaurantsChanged }) {
   const { currentUser, users } = useUser()
   const [addingType,  setAddingType]  = useState(null) // 'meal' | 'restaurant'
   const [promoting,   setPromoting]   = useState(null) // try obj (meals)
-  const [addingToRst, setAddingToRst] = useState(null) // try obj (restaurants)
+  const [removingRst, setRemovingRst] = useState(null) // try obj (restaurants)
 
   const meals       = tryList.filter(x => (x.type ?? 'meal') === 'meal')
   const restaurants = tryList.filter(x => x.type === 'restaurant')
@@ -91,9 +91,9 @@ export default function TryTab({ tryList, onChanged, onPromoted }) {
                 users={users}
                 currentUser={currentUser}
                 onVote={handleVote}
-                onPromote={() => setAddingToRst(item)}
+                onPromote={() => setRemovingRst(item)}
                 onDelete={() => handleDelete(item.id, item.name)}
-                promoteLabel="✓ Add to Restaurants"
+                promoteLabel="✓ Done — Remove from List"
               />
             ))}
           </div>
@@ -123,6 +123,7 @@ export default function TryTab({ tryList, onChanged, onPromoted }) {
           onClose={() => setAddingType(null)}
           onSaved={async () => { await onChanged(); setAddingType(null) }}
           currentUser={currentUser}
+          onRestaurantsChanged={onRestaurantsChanged}
         />
       )}
 
@@ -135,12 +136,12 @@ export default function TryTab({ tryList, onChanged, onPromoted }) {
         />
       )}
 
-      {/* ── Promote restaurant modal ─────────────────────────────────── */}
-      {addingToRst && (
-        <PromoteRestaurantModal
-          item={addingToRst}
-          onClose={() => setAddingToRst(null)}
-          onPromoted={async () => { await onPromoted(); setAddingToRst(null) }}
+      {/* ── Remove restaurant from try list ──────────────────────────── */}
+      {removingRst && (
+        <RemoveRestaurantModal
+          item={removingRst}
+          onClose={() => setRemovingRst(null)}
+          onRemoved={async () => { await onChanged(); setRemovingRst(null) }}
         />
       )}
     </div>
@@ -222,7 +223,7 @@ function TryCard({ item, users, currentUser, onVote, onPromote, onDelete, promot
 
 // ── Add suggestion modal ──────────────────────────────────────────────────────
 
-function TryFormModal({ type, title, namePlaceholder, descPlaceholder, onClose, onSaved, currentUser }) {
+function TryFormModal({ type, title, namePlaceholder, descPlaceholder, onClose, onSaved, currentUser, onRestaurantsChanged }) {
   const [name,   setName]   = useState('')
   const [desc,   setDesc]   = useState('')
   const [saving, setSaving] = useState(false)
@@ -234,11 +235,22 @@ function TryFormModal({ type, title, namePlaceholder, descPlaceholder, onClose, 
     setSaving(true)
     setError(null)
     try {
+      let restaurant_id = null
+      if (type === 'restaurant') {
+        // Immediately add to Restaurants so it's available for meal planning
+        const rst = await mealsApi.createRestaurant({
+          name:  name.trim(),
+          notes: desc.trim() || null,
+        })
+        restaurant_id = rst.id
+        if (onRestaurantsChanged) await onRestaurantsChanged()
+      }
       await mealsApi.createTry({
-        name:        name.trim(),
-        description: desc.trim() || null,
-        proposed_by: currentUser?.id ?? null,
+        name:          name.trim(),
+        description:   desc.trim() || null,
+        proposed_by:   currentUser?.id ?? null,
         type,
+        restaurant_id,
       })
       await onSaved()
     } catch (err) {
@@ -339,57 +351,36 @@ function PromoteMealModal({ item, onClose, onPromoted }) {
   )
 }
 
-// ── Promote restaurant to Restaurants tab modal ───────────────────────────────
+// ── Remove restaurant from try list ──────────────────────────────────────────
+// (Restaurant was already added to Restaurants when it was suggested)
 
-function PromoteRestaurantModal({ item, onClose, onPromoted }) {
-  const [cuisine, setCuisine] = useState('')
-  const [address, setAddress] = useState('')
-  const [saving,  setSaving]  = useState(false)
-  const [error,   setError]   = useState(null)
+function RemoveRestaurantModal({ item, onClose, onRemoved }) {
+  const [saving, setSaving] = useState(false)
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleConfirm = async () => {
     setSaving(true)
-    setError(null)
     try {
-      await mealsApi.createRestaurant({
-        name:    item.name,
-        cuisine: cuisine.trim() || null,
-        address: address.trim() || null,
-        notes:   item.description || null,
-      })
       await mealsApi.deleteTry(item.id)
-      await onPromoted()
-    } catch (err) {
-      setError(err.message)
+      await onRemoved()
+    } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal title={`Add to Restaurants: ${item.name}`} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <Modal title="Remove from Want to Try" onClose={onClose}>
+      <div className="flex flex-col gap-4">
         <p className="text-sm text-gray-600">
-          This will add <strong>{item.name}</strong> to your Restaurants list.
+          Remove <strong>{item.name}</strong> from the Want to Try list?
+          It will remain in your Restaurants tab.
         </p>
-        <div>
-          <label className="label">Cuisine <span className="text-gray-400 font-normal">(optional)</span></label>
-          <input className="input" placeholder="e.g. Thai, Italian…"
-            value={cuisine} onChange={e => setCuisine(e.target.value)} autoFocus />
-        </div>
-        <div>
-          <label className="label">Address / Location <span className="text-gray-400 font-normal">(optional)</span></label>
-          <input className="input" placeholder="e.g. 123 Main St"
-            value={address} onChange={e => setAddress(e.target.value)} />
-        </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
           <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? 'Adding…' : 'Add to Restaurants'}
+          <button type="button" className="btn-primary" onClick={handleConfirm} disabled={saving}>
+            {saving ? 'Removing…' : 'Remove from List'}
           </button>
         </div>
-      </form>
+      </div>
     </Modal>
   )
 }

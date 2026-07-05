@@ -59,7 +59,8 @@ export default function Meals() {
       )}
       {tab === 'try'         && (
         <TryTab tryList={tryList} onChanged={loadTry}
-          onPromoted={() => { loadMeals(); loadTry() }} />
+          onPromoted={() => { loadMeals(); loadTry() }}
+          onRestaurantsChanged={loadRestaurants} />
       )}
       {tab === 'restaurants' && (
         <RestaurantsTab restaurants={restaurants} onChanged={loadRestaurants} />

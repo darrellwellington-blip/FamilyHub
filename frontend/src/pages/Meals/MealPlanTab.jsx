@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { mealsApi, usersApi } from '../../api'
+import { mealsApi, usersApi, inventoryApi } from '../../api'
 import { useUser } from '../../UserContext'
 import { Modal } from '../Tasks/TaskForm'
 import RatingModal from './RatingModal'
@@ -10,12 +10,14 @@ import {
 } from './mealUtils'
 
 export default function MealPlanTab({ meals, restaurants, onMealsChanged }) {
-  const [weekStart,    setWeekStart]    = useState(() => getMonday())
-  const [plan,         setPlan]         = useState(null)
-  const [editingSlot,  setEditingSlot]  = useState(null) // { day, mealType, slot }
-  const [ratingSlot,   setRatingSlot]   = useState(null) // slot to rate
+  const [weekStart,          setWeekStart]          = useState(() => getMonday())
+  const [plan,               setPlan]               = useState(null)
+  const [editingSlot,        setEditingSlot]        = useState(null)
+  const [ratingSlot,         setRatingSlot]         = useState(null)
+  const [showSuggestions,    setShowSuggestions]    = useState(false)
+  const [selectedSuggestion, setSelectedSuggestion] = useState(null)
   const { users } = useUser()
-  const [loadingPlan,  setLoadingPlan]  = useState(false)
+  const [loadingPlan, setLoadingPlan] = useState(false)
 
   const weekISO = toISO(weekStart)
   const todayISO = toISO(new Date())
@@ -34,12 +36,38 @@ export default function MealPlanTab({ meals, restaurants, onMealsChanged }) {
     setEditingSlot(null)
   }
 
+  const assignSuggestion = async (day, mealType) => {
+    const s = selectedSuggestion
+    try {
+      await mealsApi.updateSlot(weekISO, day, mealType, {
+        slot_type:      s.type,
+        meal_id:        s.type === 'meal'       ? s.id   : null,
+        restaurant_id:  s.type === 'restaurant' ? s.id   : null,
+        leftovers_note: s.type === 'leftovers'  ? s.note : null,
+        attendees: [],
+        cook_id:    null,
+        sides_note: null,
+        orders:     [],
+      })
+      const updated = await mealsApi.getWeekPlan(weekISO)
+      setPlan(updated)
+    } catch { /* ignore */ }
+  }
+
+  const handleCellClick = (day, mealType, slot) => {
+    if (selectedSuggestion) {
+      assignSuggestion(day, mealType)
+      return
+    }
+    setEditingSlot({ day, mealType, slot })
+  }
+
   const isThisWeek = weekISO === toISO(getMonday())
 
   return (
     <div>
       {/* ── Week navigation ──────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <button className="btn-secondary" onClick={() => setWeekStart(d => addDays(d, -7))}>
             ← Prev
@@ -53,11 +81,41 @@ export default function MealPlanTab({ meals, restaurants, onMealsChanged }) {
             </button>
           )}
         </div>
-        <p className="text-sm font-medium text-gray-700">
-          {isThisWeek && <span className="text-indigo-600 mr-1">This week · </span>}
-          {fmtWeekRange(weekStart)}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm font-medium text-gray-700">
+            {isThisWeek && <span className="text-indigo-600 mr-1">This week · </span>}
+            {fmtWeekRange(weekStart)}
+          </p>
+          <button
+            onClick={() => { setShowSuggestions(v => !v); setSelectedSuggestion(null) }}
+            className={`btn border text-sm ${showSuggestions
+              ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+              : 'border-gray-200 text-gray-600 hover:border-indigo-300'}`}>
+            ✨ Suggestions
+          </button>
+        </div>
       </div>
+
+      {/* ── Suggestions panel ────────────────────────────────────────── */}
+      {showSuggestions && (
+        <SuggestionsPanel
+          meals={meals}
+          restaurants={restaurants}
+          selected={selectedSuggestion}
+          onSelect={s => setSelectedSuggestion(prev => prev?.id === s.id && prev?.type === s.type ? null : s)}
+        />
+      )}
+
+      {/* ── Assignment banner ─────────────────────────────────────────── */}
+      {selectedSuggestion && (
+        <div className="mb-3 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm flex items-center justify-between">
+          <span>
+            {selectedSuggestion.type === 'meal' ? '🍳' : selectedSuggestion.type === 'restaurant' ? '🍽️' : '📦'}
+            {' '}Tap a slot to assign <strong>{selectedSuggestion.name}</strong>
+          </span>
+          <button onClick={() => setSelectedSuggestion(null)} className="ml-3 text-white/80 hover:text-white text-lg leading-none">×</button>
+        </div>
+      )}
 
       {/* ── Grid ─────────────────────────────────────────────────────── */}
       {loadingPlan ? (
@@ -97,15 +155,18 @@ export default function MealPlanTab({ meals, restaurants, onMealsChanged }) {
                     const slot    = plan?.slots?.[day]?.[mealType] ?? null
                     const dateISO = toISO(addDays(weekStart, day))
                     const isToday = dateISO === todayISO
+                    const isSuggestMode = !!selectedSuggestion
                     return (
                       <td key={day}
-                        onClick={() => setEditingSlot({ day, mealType, slot })}
+                        onClick={() => handleCellClick(day, mealType, slot)}
                         className={`h-16 p-1 border-l border-gray-50 cursor-pointer transition-colors
                           ${isToday ? 'bg-indigo-50/40' : ''}
-                          hover:bg-indigo-50/60 group`}
+                          ${isSuggestMode ? 'hover:bg-green-50 hover:border-green-200' : 'hover:bg-indigo-50/60'}
+                          group`}
                       >
                         <SlotCell slot={slot}
-                          onRate={e => { e.stopPropagation(); setRatingSlot(slot) }} />
+                          onRate={e => { e.stopPropagation(); setRatingSlot(slot) }}
+                          suggestMode={isSuggestMode} />
                       </td>
                     )
                   })}
@@ -154,12 +215,102 @@ export default function MealPlanTab({ meals, restaurants, onMealsChanged }) {
   )
 }
 
+// ── Suggestions panel ─────────────────────────────────────────────────────────
+
+function generateSuggestions(meals, restaurants, inventory) {
+  const cards = []
+
+  // Inventory: food items expiring soonest → "Use up" leftovers suggestions
+  const getExpiry = item => {
+    const dates = (item.batches ?? []).map(b => b.best_before_date).filter(Boolean).sort()
+    return dates[0] ?? item.best_before_date ?? '9999-12-31'
+  }
+  const foodItems = inventory
+    .filter(i => i.status === 'active' && ['Food', 'Beverages'].includes(i.category))
+    .sort((a, b) => getExpiry(a).localeCompare(getExpiry(b)))
+    .slice(0, 3)
+  foodItems.forEach(item => {
+    cards.push({ type: 'leftovers', id: item.id, name: item.name, note: item.name, icon: '🥫', sub: 'Use up' })
+  })
+
+  // Restaurants: shuffle, take up to 4
+  ;[...restaurants].sort(() => Math.random() - 0.5).slice(0, 4).forEach(r => {
+    cards.push({ type: 'restaurant', id: r.id, name: r.name, icon: '🍽️', sub: r.cuisine ?? 'Restaurant' })
+  })
+
+  // Meals: least recently used first, skip Side Dish category
+  const lastUsed = m => {
+    const slots = m.meal_plan_slots ?? []
+    return slots.length ? [...slots].sort((a, b) => b.week_start.localeCompare(a.week_start))[0].week_start : '0'
+  }
+  const needed = 14 - cards.length
+  ;[...meals]
+    .filter(m => m.category !== 'Side Dish')
+    .sort((a, b) => lastUsed(a).localeCompare(lastUsed(b)))
+    .slice(0, needed)
+    .forEach(m => {
+      cards.push({ type: 'meal', id: m.id, name: m.name, icon: '🍳', sub: m.category ?? 'Meal' })
+    })
+
+  // Light shuffle, keep inventory items visible
+  return cards
+}
+
+function SuggestionsPanel({ meals, restaurants, selected, onSelect }) {
+  const [suggestions, setSuggestions] = useState([])
+  const [loading,     setLoading]     = useState(true)
+
+  const load = () => {
+    setLoading(true)
+    inventoryApi.list({ status: 'active' })
+      .then(inv => setSuggestions(generateSuggestions(meals, restaurants, inv)))
+      .catch(()  => setSuggestions(generateSuggestions(meals, restaurants, [])))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="mb-4 p-3 rounded-xl bg-gray-50 border border-gray-100">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Suggestions — tap to select, then tap a slot</p>
+        <button onClick={load} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">↻ Refresh</button>
+      </div>
+      {loading ? (
+        <p className="text-sm text-gray-400 text-center py-4">Generating…</p>
+      ) : suggestions.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-4">Add meals or restaurants to get suggestions.</p>
+      ) : (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {suggestions.map((s, i) => {
+            const isSelected = selected?.type === s.type && selected?.id === s.id
+            return (
+              <button key={i} type="button" onClick={() => onSelect(s)}
+                className={`shrink-0 w-32 rounded-lg border p-2 text-left transition-colors ${
+                  isSelected
+                    ? 'border-indigo-500 bg-indigo-50 shadow-sm'
+                    : 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/40'
+                }`}>
+                <div className="text-base mb-0.5">{s.icon}</div>
+                <p className="text-xs font-semibold text-gray-800 leading-tight line-clamp-2">{s.name}</p>
+                <p className="text-xs text-gray-400 mt-0.5 truncate">{s.sub}</p>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Slot cell ─────────────────────────────────────────────────────────────────
 
-function SlotCell({ slot, onRate }) {
+function SlotCell({ slot, onRate, suggestMode }) {
   if (!slot || slot.slot_type === 'empty') {
     return (
-      <div className="flex items-center justify-center h-full text-gray-200 text-xl group-hover:text-gray-400 transition-colors">
+      <div className={`flex items-center justify-center h-full text-xl transition-colors ${
+        suggestMode ? 'text-green-300 group-hover:text-green-500' : 'text-gray-200 group-hover:text-gray-400'
+      }`}>
         +
       </div>
     )
@@ -168,7 +319,7 @@ function SlotCell({ slot, onRate }) {
   const canRate = (slot.slot_type === 'meal' && slot.meal) ||
                   (slot.slot_type === 'restaurant' && slot.restaurant)
 
-  const RateBtn = canRate ? (
+  const RateBtn = canRate && !suggestMode ? (
     <button type="button" onClick={onRate}
       className="absolute top-0.5 right-0.5 text-gray-300 hover:text-amber-400 text-xs leading-none"
       title="Rate">★</button>
@@ -226,7 +377,7 @@ function SlotCell({ slot, onRate }) {
 // ── Restaurant orders ─────────────────────────────────────────────────────────
 
 function OrdersSection({ orders, attendeeIds, users, onChange }) {
-  const [inputs, setInputs] = useState({}) // keyed by userId (null = shared)
+  const [inputs, setInputs] = useState({})
 
   const setInput = (key, val) => setInputs(p => ({ ...p, [key]: val }))
 
@@ -302,22 +453,22 @@ const SLOT_TYPES = [
 
 function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, onSaved, onMealsChanged }) {
   const { users, reloadUsers } = useUser()
-  const [slotType,      setSlotType]      = useState(slot?.slot_type ?? 'empty')
-  const [mealId,        setMealId]        = useState(slot?.meal_id       ?? null)
-  const [restaurantId,  setRestaurantId]  = useState(slot?.restaurant_id ?? null)
-  const [leftoversNote, setLeftoversNote] = useState(slot?.leftovers_note ?? '')
-  const [attendees,     setAttendees]     = useState(() => new Set(slot?.attendees ?? []))
-  const [cookId,        setCookId]        = useState(slot?.cook_id ?? null)
-  const [ratingOpen,    setRatingOpen]    = useState(false)
-  const [search,        setSearch]        = useState('')
-  const [sidesNote,     setSidesNote]     = useState(slot?.sides_note ?? '')
-  const [orders,        setOrders]        = useState(slot?.orders ?? [])
-  const [saving,        setSaving]        = useState(false)
-  const [addingMeal,    setAddingMeal]    = useState(false)
-  const [addingRest,    setAddingRest]    = useState(false)
-  const [newRestName,   setNewRestName]   = useState('')
-  const [newRestCuisine,setNewRestCuisine]= useState('')
-  const [savingRest,    setSavingRest]    = useState(false)
+  const [slotType,       setSlotType]       = useState(slot?.slot_type ?? 'empty')
+  const [mealId,         setMealId]         = useState(slot?.meal_id       ?? null)
+  const [restaurantId,   setRestaurantId]   = useState(slot?.restaurant_id ?? null)
+  const [leftoversNote,  setLeftoversNote]  = useState(slot?.leftovers_note ?? '')
+  const [attendees,      setAttendees]      = useState(() => new Set(slot?.attendees ?? []))
+  const [cookId,         setCookId]         = useState(slot?.cook_id ?? null)
+  const [ratingOpen,     setRatingOpen]     = useState(false)
+  const [search,         setSearch]         = useState('')
+  const [sidesNote,      setSidesNote]      = useState(slot?.sides_note ?? '')
+  const [orders,         setOrders]         = useState(slot?.orders ?? [])
+  const [saving,         setSaving]         = useState(false)
+  const [addingMeal,     setAddingMeal]     = useState(false)
+  const [addingRest,     setAddingRest]     = useState(false)
+  const [newRestName,    setNewRestName]    = useState('')
+  const [newRestCuisine, setNewRestCuisine] = useState('')
+  const [savingRest,     setSavingRest]     = useState(false)
 
   const title = `${DAY_NAMES[day]} ${MEAL_TYPE_LABELS[mealType]}`
 
@@ -327,9 +478,9 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
     return next
   })
 
-  const [showNewPerson,  setShowNewPerson]  = useState(false)
-  const [newPersonName,  setNewPersonName]  = useState('')
-  const [savingPerson,   setSavingPerson]   = useState(false)
+  const [showNewPerson, setShowNewPerson] = useState(false)
+  const [newPersonName, setNewPersonName] = useState('')
+  const [savingPerson,  setSavingPerson]  = useState(false)
 
   const handleAddPerson = async () => {
     const name = newPersonName.trim()
@@ -342,7 +493,8 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
       setNewPersonName('')
       setShowNewPerson(false)
     } finally {
-      setSavingPerson(false) }
+      setSavingPerson(false)
+    }
   }
 
   const handleAddRestaurant = async () => {
@@ -387,7 +539,6 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
     (m.category ?? '').toLowerCase().includes(search.toLowerCase())
   )
 
-  // When a new meal is created from this modal, refresh the library and auto-select it
   const handleNewMealSaved = async (saved) => {
     setAddingMeal(false)
     if (onMealsChanged) await onMealsChanged()
