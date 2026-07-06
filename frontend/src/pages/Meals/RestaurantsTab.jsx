@@ -49,7 +49,6 @@ export default function RestaurantsTab({ restaurants, onChanged }) {
   }
 
   const handleDelete = async (rest) => {
-    if (!confirm(`Delete "${rest.name}"?`)) return
     await mealsApi.deleteRestaurant(rest.id)
     await onChanged()
     setViewing(null)
@@ -167,7 +166,8 @@ function RestaurantDetailModal({
   const [loadingVisits, setLoadingVisits] = useState(false)
   const [loggingVisit,  setLoggingVisit]  = useState(false)
 
-  const [showRating, setShowRating] = useState(false)
+  const [showRating,   setShowRating]   = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const loadVisits = async () => {
     if (visits !== null) return
@@ -296,7 +296,15 @@ function RestaurantDetailModal({
           <button className="btn-secondary" onClick={() => setLoggingVisit(true)}>Log Visit</button>
           <button className="btn-secondary" onClick={() => setShowRating(true)}>⭐ Rate</button>
           <button className="btn-secondary" onClick={onEdit}>Edit</button>
-          <button className="btn-danger ml-auto" onClick={onDelete}>Delete</button>
+          {confirmDelete ? (
+            <span className="ml-auto flex items-center gap-2">
+              <span className="text-sm text-red-600">Delete "{restaurant.name}"?</span>
+              <button className="btn-danger" onClick={onDelete}>Yes, delete</button>
+              <button className="btn-secondary" onClick={() => setConfirmDelete(false)}>Cancel</button>
+            </span>
+          ) : (
+            <button className="btn-danger ml-auto" onClick={() => setConfirmDelete(true)}>Delete</button>
+          )}
         </div>
 
       </div>
