@@ -470,7 +470,7 @@ function SlotModal({ slot, day, mealType, weekISO, meals, restaurants, onClose, 
   const [mealId,         setMealId]         = useState(slot?.meal_id       ?? null)
   const [restaurantId,   setRestaurantId]   = useState(slot?.restaurant_id ?? null)
   const [leftoversNote,  setLeftoversNote]  = useState(slot?.leftovers_note ?? '')
-  const [attendees,      setAttendees]      = useState(() => new Set(slot?.attendees ?? []))
+  const [attendees,      setAttendees]      = useState(() => new Set((slot?.attendees ?? []).map(a => typeof a === 'object' ? a.id : a)))
   const [cookId,         setCookId]         = useState(slot?.cook_id ?? null)
   const [ratingOpen,     setRatingOpen]     = useState(false)
   const [search,         setSearch]         = useState('')
