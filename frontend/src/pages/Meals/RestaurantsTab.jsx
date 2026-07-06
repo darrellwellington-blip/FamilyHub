@@ -49,9 +49,13 @@ export default function RestaurantsTab({ restaurants, onChanged }) {
   }
 
   const handleDelete = async (rest) => {
-    await mealsApi.deleteRestaurant(rest.id)
-    await onChanged()
-    setViewing(null)
+    try {
+      await mealsApi.deleteRestaurant(rest.id)
+      await onChanged()
+      setViewing(null)
+    } catch (e) {
+      alert('Could not delete: ' + (e?.message ?? e))
+    }
   }
 
   return (
