@@ -244,7 +244,11 @@ export const mealsApi = {
   },
   createRestaurant: (data)     => sb(supabase.from('restaurants').insert(data).select().single()),
   updateRestaurant: (id, data) => sb(supabase.from('restaurants').update(data).eq('id', id).select().single()),
-  deleteRestaurant: (id)       => sb(supabase.from('restaurants').delete().eq('id', id)),
+  deleteRestaurant: async (id) => {
+    await sb(supabase.from('meal_plan_slots').update({ restaurant_id: null }).eq('restaurant_id', id))
+    await sb(supabase.from('meals_to_try').delete().eq('restaurant_id', id))
+    return sb(supabase.from('restaurants').delete().eq('id', id))
+  },
 
   rateRestaurant: async (id, data) => {
     await sb(supabase.rpc('upsert_restaurant_rating', {
